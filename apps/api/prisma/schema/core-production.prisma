@@ -1,0 +1,47 @@
+// owner: src/core/production
+model JobCard {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  jobCardNo    String   @map("job_card_no")
+  stationId    String   @map("station_id")
+  dealerId     String   @map("dealer_id")
+  orderIds     String[] @map("order_ids")
+  boxNos       String[] @map("box_nos")
+  plateCount   Int      @map("plate_count")
+  createdBy    String?  @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, jobCardNo])
+  @@map("core_prd_job_card")
+}
+
+model QcRecord {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  orderId   String   @map("order_id")
+  result    String
+  positions String[]
+  reason    String?
+  actorId   String?  @map("actor_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([orderId])
+  @@map("core_prd_qc")
+}
+
+model StickerPrint {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  orderId   String   @map("order_id")
+  printNo   Int      @map("print_no")
+  reprint   Boolean
+  reason    String?
+  actorId   String?  @map("actor_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([orderId, printNo])
+  @@map("core_prd_sticker_print")
+}

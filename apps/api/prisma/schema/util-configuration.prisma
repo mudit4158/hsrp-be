@@ -1,0 +1,17 @@
+// owner: src/utility/configuration
+model ConfigSetting {
+  id            String    @id @default(uuid())
+  tenantId      String    @map("tenant_id")
+  key           String
+  scopeType     String    @map("scope_type")
+  scopeId       String    @map("scope_id")
+  value         Json
+  effectiveFrom DateTime  @default(now()) @map("effective_from")
+  effectiveTo   DateTime? @map("effective_to")
+  createdBy     String?   @map("created_by")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([tenantId, key])
+  @@map("util_config_setting")
+}

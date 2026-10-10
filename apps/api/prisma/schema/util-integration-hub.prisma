@@ -1,0 +1,78 @@
+// owner: src/utility/integration-hub
+/// Transactional outbox: written in the same DB transaction as the state change it describes.
+model OutboxEvent {
+  id           String    @id @default(uuid())
+  seq          Int       @default(autoincrement())
+  tenantId     String    @map("tenant_id")
+  eventType    String    @map("event_type")
+  subjectType  String?   @map("subject_type")
+  subjectId    String?   @map("subject_id")
+  payload      Json
+  actorId      String?   @map("actor_id")
+  occurredAt   DateTime  @default(now()) @map("occurred_at")
+  dispatchedAt DateTime? @map("dispatched_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([dispatchedAt, seq])
+  @@index([tenantId, subjectType, subjectId])
+  @@map("util_hub_outbox_event")
+}
+
+/// One row per (event, subscriber). Retried with exponential back-off; DEAD = dead-letter / manual queue.
+model OutboxDelivery {
+  id            String    @id @default(uuid())
+  tenantId      String    @map("tenant_id")
+  eventId       String    @map("event_id")
+  eventType     String    @map("event_type")
+  subscriber    String
+  status        String    @default("PENDING")
+  attempts      Int       @default(0)
+  maxAttempts   Int       @default(8) @map("max_attempts")
+  nextAttemptAt DateTime  @default(now()) @map("next_attempt_at")
+  lockedUntil   DateTime? @map("locked_until")
+  lastError     String?   @map("last_error")
+  completedAt   DateTime? @map("completed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@unique([eventId, subscriber])
+  @@index([status, nextAttemptAt])
+  @@map("util_hub_outbox_delivery")
+}
+
+model IdempotencyKey {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  scope        String
+  key          String
+  requestHash  String   @map("request_hash")
+  status       String   @default("IN_PROGRESS")
+  responseCode Int?     @map("response_code")
+  responseBody Json?    @map("response_body")
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, scope, key])
+  @@map("util_hub_idempotency_key")
+}
+
+model CallLog {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  system      String
+  operation   String
+  subjectType String?  @map("subject_type")
+  subjectId   String?  @map("subject_id")
+  request     Json?
+  response    Json?
+  outcome     String
+  error       String?
+  durationMs  Int      @map("duration_ms")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, system, createdAt])
+  @@map("util_hub_call_log")
+}

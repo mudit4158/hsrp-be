@@ -1,0 +1,52 @@
+// owner: src/utility/tickets
+model TicketCategory {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  code      String
+  name      String
+  slaDays   Int      @map("sla_days")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, code])
+  @@map("util_ticket_category")
+}
+
+model Ticket {
+  id              String    @id @default(uuid())
+  tenantId        String    @map("tenant_id")
+  ticketNo        String    @unique @map("ticket_no")
+  categoryCode    String    @map("category_code")
+  title           String
+  description     String
+  status          String    @default("OPEN")
+  raisedByName    String    @map("raised_by_name")
+  raisedByContact String    @map("raised_by_contact")
+  ownerUserId     String?   @map("owner_user_id")
+  subjectType     String?   @map("subject_type")
+  subjectId       String?   @map("subject_id")
+  dueAt           DateTime  @map("due_at")
+  resolvedAt      DateTime? @map("resolved_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([tenantId, status])
+  @@map("util_ticket")
+}
+
+model TicketEvent {
+  id         String   @id @default(uuid())
+  tenantId   String   @map("tenant_id")
+  ticketId   String   @map("ticket_id")
+  kind       String
+  message    String?
+  fromStatus String?  @map("from_status")
+  toStatus   String?  @map("to_status")
+  actor      String?
+  isPublic   Boolean  @default(true) @map("is_public")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([ticketId])
+  @@map("util_ticket_event")
+}

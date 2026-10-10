@@ -1,0 +1,39 @@
+// owner: src/core/dispatch
+/// Immutable once created: cancel and recreate only. Inwarded once.
+model Challan {
+  id           String    @id @default(uuid())
+  tenantId     String    @map("tenant_id")
+  challanNo    String    @map("challan_no")
+  stationId    String    @map("station_id")
+  dealerId     String    @map("dealer_id")
+  status       String    @default("CREATED")
+  createdBy    String?   @map("created_by")
+  cancelReason String?   @map("cancel_reason")
+  cancelledAt  DateTime? @map("cancelled_at")
+  inwardedAt   DateTime? @map("inwarded_at")
+  inwardedBy   String?   @map("inwarded_by")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@unique([tenantId, challanNo])
+  @@index([tenantId, dealerId, status])
+  @@map("core_dsp_challan")
+}
+
+model ChallanLine {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  challanId    String   @map("challan_id")
+  orderId      String   @map("order_id")
+  allocationId String   @map("allocation_id")
+  laserCode    String   @map("laser_code")
+  position     String
+  inwardStatus String   @default("PENDING") @map("inward_status")
+  rejectReason String?  @map("reject_reason")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([challanId])
+  @@index([orderId])
+  @@map("core_dsp_challan_line")
+}

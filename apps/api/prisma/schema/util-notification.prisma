@@ -1,0 +1,41 @@
+// owner: src/utility/notification
+model NotifyTemplate {
+  id            String   @id @default(uuid())
+  tenantId      String   @map("tenant_id")
+  code          String
+  channel       String
+  senderId      String   @map("sender_id")
+  dltTemplateId String?  @map("dlt_template_id")
+  subject       String?
+  body          String
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, code, channel])
+  @@map("util_notify_template")
+}
+
+model NotifyMessage {
+  id            String    @id @default(uuid())
+  tenantId      String    @map("tenant_id")
+  templateCode  String    @map("template_code")
+  channel       String
+  recipient     String
+  senderId      String    @map("sender_id")
+  dltTemplateId String?   @map("dlt_template_id")
+  subject       String?
+  body          String
+  variables     Json
+  status        String    @default("QUEUED")
+  providerRef   String?   @map("provider_ref")
+  error         String?
+  subjectType   String?   @map("subject_type")
+  subjectId     String?   @map("subject_id")
+  sentAt        DateTime? @map("sent_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([tenantId, createdAt])
+  @@map("util_notify_message")
+}

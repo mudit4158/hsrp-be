@@ -1,0 +1,52 @@
+// owner: src/utility/import-export
+model ImportProfile {
+  id         String   @id @default(uuid())
+  tenantId   String   @map("tenant_id")
+  code       String
+  name       String
+  sourceName String   @map("source_name")
+  targetType String   @map("target_type")
+  delimiter  String   @default(",")
+  /// { columns: { targetField: { from: "Source Column", required?, transform? } }, context?: {...} }
+  mapping    Json
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, code])
+  @@map("util_import_profile")
+}
+
+model ImportJob {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  profileCode String   @map("profile_code")
+  targetType  String   @map("target_type")
+  fileId      String?  @map("file_id")
+  filename    String
+  status      String   @default("PARSED")
+  totalRows   Int      @default(0) @map("total_rows")
+  okRows      Int      @default(0) @map("ok_rows")
+  errorRows   Int      @default(0) @map("error_rows")
+  createdBy   String?  @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("util_import_job")
+}
+
+model ImportRow {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  jobId     String   @map("job_id")
+  rowNo     Int      @map("row_no")
+  raw       Json
+  mapped    Json?
+  status    String   @default("PENDING")
+  errors    Json?
+  resultRef String?  @map("result_ref")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([jobId, rowNo])
+  @@map("util_import_row")
+}

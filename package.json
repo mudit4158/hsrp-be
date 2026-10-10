@@ -1,0 +1,20 @@
+{
+  "name": "hsrp-dms",
+  "private": true,
+  "version": "0.1.0",
+  "description": "HSRP Dealer Management System prototype",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter ./packages/** --filter ./apps/api --filter ./apps/web run build",
+    "lint:deps": "pnpm --filter @hsrp/api run lint:deps",
+    "test": "pnpm --filter @hsrp/api run test",
+    "dev:api": "pnpm --filter @hsrp/api run dev",
+    "dev:web": "pnpm --filter @hsrp/web run dev",
+    "db:migrate": "pnpm --filter @hsrp/api run db:migrate",
+    "seed": "pnpm --filter @hsrp/api run seed",
+    "demo:e2e": "pnpm --filter @hsrp/api run demo:e2e"
+  }
+}

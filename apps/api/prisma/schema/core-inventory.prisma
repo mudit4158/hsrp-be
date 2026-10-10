@@ -1,0 +1,55 @@
+// owner: src/core/inventory
+model PlateBox {
+  id          String    @id @default(uuid())
+  tenantId    String    @map("tenant_id")
+  boxNo       String    @map("box_no")
+  stationId   String    @map("station_id")
+  productCode String    @map("product_code")
+  plateCount  Int       @map("plate_count")
+  status      String    @default("OPEN")
+  lockedBy    String?   @map("locked_by")
+  lockedUntil DateTime? @map("locked_until")
+  receivedAt  DateTime  @default(now()) @map("received_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@unique([tenantId, boxNo])
+  @@map("core_inv_box")
+}
+
+model Plate {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  laserCode   String   @map("laser_code")
+  boxId       String   @map("box_id")
+  stationId   String   @map("station_id")
+  productCode String   @map("product_code")
+  status      String   @default("AVAILABLE")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, laserCode])
+  @@index([boxId, status])
+  @@map("core_inv_plate")
+}
+
+/// History of laser code ↔ order allocations. A partial unique index (migration 0002) allows only one
+/// ACTIVE row per laser code and per (order, position).
+model PlateAllocation {
+  id          String    @id @default(uuid())
+  tenantId    String    @map("tenant_id")
+  plateId     String    @map("plate_id")
+  laserCode   String    @map("laser_code")
+  orderId     String    @map("order_id")
+  position    String
+  status      String    @default("ACTIVE")
+  jobCardId   String?   @map("job_card_id")
+  closeReason String?   @map("close_reason")
+  closedAt    DateTime? @map("closed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([orderId])
+  @@index([laserCode])
+  @@map("core_inv_allocation")
+}

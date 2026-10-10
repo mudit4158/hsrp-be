@@ -1,0 +1,65 @@
+// owner: src/utility/wallet
+/// Double-entry ledger. Every journal's entries sum to zero. Balances are kept on the account row
+/// (updated under a row lock in the same transaction) and can always be recomputed from entries.
+model LedgerAccount {
+  id               String   @id @default(uuid())
+  tenantId         String   @map("tenant_id")
+  ownerType        String   @map("owner_type")
+  ownerId          String   @map("owner_id")
+  kind             String
+  name             String
+  currency         String   @default("INR")
+  balancePaise     Int      @default(0) @map("balance_paise")
+  creditLimitPaise Int      @default(0) @map("credit_limit_paise")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, ownerType, ownerId, kind])
+  @@map("util_wallet_account")
+}
+
+model LedgerJournal {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  kind        String
+  memo        String
+  reference   String?
+  subjectType String?  @map("subject_type")
+  subjectId   String?  @map("subject_id")
+  createdBy   String?  @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("util_wallet_journal")
+}
+
+model LedgerEntry {
+  id                String   @id @default(uuid())
+  tenantId          String   @map("tenant_id")
+  journalId         String   @map("journal_id")
+  accountId         String   @map("account_id")
+  amountPaise       Int      @map("amount_paise")
+  balanceAfterPaise Int      @map("balance_after_paise")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([accountId, createdAt])
+  @@map("util_wallet_entry")
+}
+
+model LedgerHold {
+  id              String   @id @default(uuid())
+  tenantId        String   @map("tenant_id")
+  walletAccountId String   @map("wallet_account_id")
+  amountPaise     Int      @map("amount_paise")
+  status          String   @default("HELD")
+  subjectType     String   @map("subject_type")
+  subjectId       String   @map("subject_id")
+  holdJournalId   String   @map("hold_journal_id")
+  settleJournalId String?  @map("settle_journal_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([walletAccountId, status])
+  @@map("util_wallet_hold")
+}

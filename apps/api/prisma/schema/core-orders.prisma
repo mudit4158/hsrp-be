@@ -1,0 +1,105 @@
+// owner: src/core/order-intake
+model Order {
+  id                String    @id @default(uuid())
+  tenantId          String    @map("tenant_id")
+  orderNo           String    @map("order_no")
+  channel           String
+  orderType         String    @map("order_type")
+  plateSet          String    @default("BOTH") @map("plate_set")
+  replacementReason String?   @map("replacement_reason")
+  evidenceFileId    String?   @map("evidence_file_id")
+  status            String
+  stateCode         String    @map("state_code")
+  regnNo            String    @map("regn_no")
+  chassisNo         String    @map("chassis_no")
+  engineNo          String    @map("engine_no")
+  oemId             String?   @map("oem_id")
+  dealerId          String?   @map("dealer_id")
+  stationId         String?   @map("station_id")
+  sourceRef         String?   @map("source_ref")
+  vehicleClass      String?   @map("vehicle_class")
+  vehicleType       String?   @map("vehicle_type")
+  vahanCategory     String?   @map("vahan_category")
+  fuel              String?
+  maker             String?
+  norms             String?
+  regnDate          String?   @map("regn_date")
+  greenStrip        Boolean   @default(false) @map("green_strip")
+  stickerRequired   Boolean   @default(false) @map("sticker_required")
+  frontProductCode  String?   @map("front_product_code")
+  rearProductCode   String?   @map("rear_product_code")
+  /// Positions still waiting for a plate (all of the plate set at first; only re-issued ones after a rejection).
+  pendingPositions  String[]  @map("pending_positions")
+  ownerName         String?   @map("owner_name")
+  mobile            String?
+  email             String?
+  amountPaise       Int?      @map("amount_paise")
+  priceSnapshot     Json?     @map("price_snapshot")
+  vahanSnapshot     Json?     @map("vahan_snapshot")
+  walletHoldId      String?   @map("wallet_hold_id")
+  paymentId         String?   @map("payment_id")
+  approvalId        String?   @map("approval_id")
+  rejectionReason   String?   @map("rejection_reason")
+  cancelReason      String?   @map("cancel_reason")
+  remarks           String?
+  createdBy         String?   @map("created_by")
+  confirmedAt       DateTime? @map("confirmed_at")
+  completedAt       DateTime? @map("completed_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@unique([tenantId, orderNo])
+  @@unique([tenantId, oemId, sourceRef])
+  @@index([tenantId, status])
+  @@index([tenantId, regnNo])
+  @@index([tenantId, dealerId, status])
+  @@map("core_ord_order")
+}
+
+model OrderStatusHistory {
+  id         String   @id @default(uuid())
+  tenantId   String   @map("tenant_id")
+  orderId    String   @map("order_id")
+  fromStatus String?  @map("from_status")
+  toStatus   String   @map("to_status")
+  trigger    String
+  actorId    String?  @map("actor_id")
+  note       String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([orderId, createdAt])
+  @@map("core_ord_status_history")
+}
+
+model OrderValidation {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  orderId   String   @map("order_id")
+  step      String
+  outcome   String
+  message   String?
+  data      Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([orderId])
+  @@map("core_ord_validation")
+}
+
+/// Customer-portal vehicle check: the VAHAN lookup runs from the outbox; the portal polls this row.
+model VehicleCheck {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  stateCode   String   @map("state_code")
+  regnNo      String   @map("regn_no")
+  chassisLast5 String  @map("chassis_last5")
+  engineLast5 String   @map("engine_last5")
+  status      String   @default("PENDING")
+  result      Json?
+  error       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("core_ord_vehicle_check")
+}
