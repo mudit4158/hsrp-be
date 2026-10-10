@@ -75,6 +75,15 @@ export class IntegrationHubController {
     return updated;
   }
 
+  /** Replays every failed or dead delivery of one subscriber, e.g. all VAHAN posts once VAHAN is back. */
+  @Post('subscribers/:subscriber/replay')
+  @RequirePermission('integration.replay')
+  async replayAll(@Param('subscriber') subscriber: string) {
+    const count = await this.bus.replayAll(subscriber);
+    await this.audit.record({ action: 'integration.replay-all', subjectType: 'outbox-subscriber', subjectId: subscriber, after: { count } });
+    return { subscriber, requeued: count };
+  }
+
   @Get('events')
   @RequirePermission('integration.monitor', 'orders.read')
   async events(@Query() q: FilteredPageQueryDto) {

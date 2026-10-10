@@ -73,6 +73,27 @@ export class EventBus implements OnApplicationShutdown {
     this.subs.set(eventType, list);
   }
 
+  /** Delivery counts by status, plus how many are queued for retry and how many sit in the manual queue. */
+  async stats() {
+    const rows = await this.prisma.outboxDelivery.groupBy({ by: ['status'], where: { tenantId: requestContext.tenantId() }, _count: true });
+    const by = Object.fromEntries(rows.map((r) => [r.status, r._count])) as Record<string, number>;
+    return { pending: (by.PENDING ?? 0) + (by.RUNNING ?? 0), retrying: by.FAILED ?? 0, dead: by.DEAD ?? 0, done: by.DONE ?? 0 };
+  }
+
+  eventsFor(subjectType: string, subjectId: string) {
+    return this.prisma.outboxEvent.findMany({ where: { tenantId: requestContext.tenantId(), subjectType, subjectId }, orderBy: { seq: 'asc' }, take: 500 });
+  }
+
+  /** Re-queues every FAILED or DEAD delivery of one subscriber now (e.g. after VAHAN comes back). */
+  async replayAll(subscriber: string) {
+    const res = await this.prisma.outboxDelivery.updateMany({
+      where: { tenantId: requestContext.tenantId(), subscriber, status: { in: ['FAILED', 'DEAD'] } },
+      data: { status: 'PENDING', nextAttemptAt: new Date() },
+    });
+    this.kick();
+    return res.count;
+  }
+
   subscriptions(): Array<{ eventType: string; subscriber: string }> {
     return [...this.subs.entries()].flatMap(([eventType, l]) => l.map((s) => ({ eventType, subscriber: s.name })));
   }

@@ -38,6 +38,10 @@ export class AuditService {
       },
     });
   }
+
+  forSubject(subjectType: string, subjectId: string) {
+    return this.prisma.auditLog.findMany({ where: { tenantId: requestContext.tenantId(), subjectType, subjectId }, orderBy: { createdAt: 'asc' }, take: 500 });
+  }
 }
 
 function toJson(v: unknown): Prisma.InputJsonValue | undefined {
