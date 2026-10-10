@@ -49,6 +49,14 @@ export class SimulatorController {
     };
   }
 
+  /** The demo OEM's own credentials (they live on the "OEM side" of the simulation). Used by demo:e2e. */
+  @Get('oem-credentials')
+  @RequirePermission('simulator.use')
+  async credentials() {
+    const demos = await this.state.get<OemDemo[]>('oem.demo', []);
+    return demos.filter((d) => d.apiKey).map((d) => ({ oemCode: d.oemCode, apiKey: d.apiKey, secret: d.secret, dealerCodes: d.dealerCodes }));
+  }
+
   @Put('vahan-mode')
   @RequirePermission('simulator.use')
   async setVahanMode(@Body() body: VahanModeDto) {

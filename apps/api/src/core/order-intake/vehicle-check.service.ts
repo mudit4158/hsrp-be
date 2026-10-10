@@ -11,6 +11,7 @@ import { MastersService } from '../masters/masters.service';
 import { VEHICLE_REGISTRY, VehicleRegistry } from '../ports/vehicle-registry.port';
 import { PricingService } from '../pricing/pricing.module';
 import { parseDate } from '../shared/subjects';
+import { FINAL_STATUSES } from './order-state-machine';
 
 /**
  * Customer portal "validate vehicle". The VAHAN lookup is an external call, so it runs from the outbox
@@ -61,7 +62,18 @@ export class VehicleCheckService implements OnModuleInit {
     const c = await this.prisma.vehicleCheck.findUnique({ where: { id: String(e.payload.checkId) } });
     if (!c) throw new NonRetryableError('Check not found');
     if (c.status !== 'PENDING') return;
-    const req = { regnNO: c.regnNo, chasisNo: c.chassisLast5, engineNo: c.engineLast5, userId: await this.settings.getOr('vahan.userId', 'HSRPDEMO') };
+    const open = await this.prisma.order.findFirst({
+      where: { tenantId: c.tenantId, regnNo: c.regnNo, status: { notIn: [...FINAL_STATUSES] } },
+      select: { orderNo: true },
+    });
+    if (open) {
+      await this.prisma.vehicleCheck.update({
+        where: { id: c.id },
+        data: { status: 'FAILED', error: `HSRP order ${open.orderNo} is already in progress for this vehicle. Track it under HSRP Status.` },
+      });
+      return;
+    }
+    const req ={ regnNO: c.regnNo, chasisNo: c.chassisLast5, engineNo: c.engineLast5, userId: await this.settings.getOr('vahan.userId', 'HSRPDEMO') };
     let reply;
     try {
       reply = await this.calls.track({ system: 'VAHAN', operation: 'lookup', subjectType: 'hsrp.vehicle-check', subjectId: c.id, request: req }, () => this.vahan.lookup(req));

@@ -1,4 +1,4 @@
-import { Body, Controller, Logger, Post, Res } from '@nestjs/common';
+import { Body, Controller, HttpCode, Logger, Post, Res } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { randomInt } from 'node:crypto';
@@ -31,6 +31,7 @@ export class MockPayuGatewayController {
 
   @Post('_payment')
   @Public()
+  @HttpCode(200)
   async payment(@Body() f: Record<string, string>, @Res() res: Response) {
     if (f.key !== env.payu.key || requestHash(f, env.payu.salt) !== f.hash) {
       res.status(400).type('html').send(page('Invalid request', '<h1>Invalid payment request</h1><p>Hash check failed. The request was not signed with the merchant salt.</p>'));
@@ -56,6 +57,7 @@ export class MockPayuGatewayController {
 
   @Post('complete')
   @Public()
+  @HttpCode(200)
   async complete(@Body() body: { txnid: string; outcome: string }, @Res() res: Response) {
     const t = await this.prisma.mockPayuTxn.findUnique({ where: { txnid: body.txnid } });
     if (!t) {
