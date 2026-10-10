@@ -51,9 +51,10 @@ export class PaymentsService implements OnModuleInit {
   }
 
   /** Builds the signed hosted-checkout form the browser posts to the gateway. */
-  async checkout(paymentId: string) {
-    const p = await this.get(paymentId);
+  async checkout(paymentId: string, opts: { returnUrl?: string } = {}) {
+    let p = await this.get(paymentId);
     if (p.status === 'SUCCESS') throw Problem.conflict('Already paid', 'already-paid');
+    if (opts.returnUrl && opts.returnUrl !== p.returnUrl) p = await this.prisma.payment.update({ where: { id: p.id }, data: { returnUrl: opts.returnUrl } });
     const payer = p.payer as { name: string; email?: string; mobile?: string };
     const form = this.provider.createCheckout({
       txnId: p.txnId,

@@ -97,7 +97,9 @@ async function otpFor(mobile: string, sinceIso: string) {
 /** Places a dealer order on the first demo vehicle that has no open order and passes validation. */
 async function dealerOrder(user: string, pool: string, state: string, extra: Record<string, unknown> = {}, want = ['CONFIRMED']) {
   const vehicles: Json[] = await ok('GET', `/api/v1/simulator/vahan-vehicles?scenario=${pool}&state=${state}`, as('admin'));
-  for (const v of vehicles.reverse()) {
+  // Skip vehicles an earlier run already plated (VAHAN shows laser codes), except for replacement demos.
+  const usable = pool === 'demo-has-plates' ? vehicles : vehicles.filter((v) => !v.hsrpFrontLaserCode);
+  for (const v of usable.reverse()) {
     const r = await call('POST', '/api/v1/orders', { ...as(user), idem: randomUUID(), body: { regnNo: v.regnNo, chassisNo: v.chassisNo, engineNo: v.engineNo, mobile: '9000099001', ...extra } });
     if (r.status === 409) continue;
     assert(r.status === 201, `create order → ${r.status} ${JSON.stringify(r.body)}`);
@@ -203,7 +205,7 @@ async function main() {
   await flow('B. OEM order by API', async () => {
     const [cred] = await ok('GET', '/api/v1/simulator/oem-credentials', as('admin'));
     const pool: Json[] = await ok('GET', '/api/v1/simulator/vahan-vehicles?scenario=oem-zenmo-sample&state=OD', as('admin'));
-    for (const v of pool.reverse()) {
+    for (const v of pool.filter((x) => !x.hsrpFrontLaserCode).reverse()) {
       const payload = { oemOrderRef: `E2E-${Date.now()}`, dealerCode: 'OD02', regnNo: v.regnNo, chassisNo: v.chassisNo, engineNo: v.engineNo, ownerName: 'E2E Owner', mobile: '9000099002' };
       const raw = JSON.stringify(payload);
       const key = randomUUID();
@@ -242,7 +244,7 @@ async function main() {
 
   await flow('D. Customer order (portal)', async () => {
     const pool: Json[] = await ok('GET', '/api/v1/simulator/vahan-vehicles?scenario=demo-old&state=WB', as('admin'));
-    for (const v of pool.reverse()) {
+    for (const v of pool.filter((x) => !x.hsrpFrontLaserCode).reverse()) {
       const chk = await ok('POST', '/api/v1/public/vehicle-checks', { body: { stateCode: 'WB', regnNo: v.regnNo, chassisLast5: v.chassisNo.slice(-5), engineLast5: v.engineNo.slice(-5) } });
       const res = await waitFor('vehicle check', () => ok('GET', `/api/v1/public/vehicle-checks/${chk.id}`), (c: Json) => c.status !== 'PENDING');
       if (res.status !== 'DONE' || res.result.orderType !== 'OLD') continue;

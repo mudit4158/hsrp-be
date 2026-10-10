@@ -23,6 +23,7 @@ class OtpVerifyDto extends createZodDto(OtpVerify) {}
 class CustomerOrderDto extends createZodDto(CustomerOrderRequest) {}
 class RescheduleDto extends createZodDto(RescheduleRequest) {}
 class ComplaintDto extends createZodDto(ComplaintRequest) {}
+class CheckoutDto extends createZodDto(z.object({ returnOrigin: z.string().max(200).optional() })) {}
 class ComplaintStatusDto extends createZodDto(OtpVerify.extend({ ticketNo: z.string().min(3) })) {}
 
 const STRICT = { default: { limit: 20, ttl: 60_000 } };
@@ -111,8 +112,8 @@ export class CustomerPortalController {
   @Post('orders/:id/checkout')
   @RequirePermission('portal.customer')
   @HttpCode(200)
-  checkout(@Param('id') id: string) {
-    return this.portal.checkout(id);
+  checkout(@Param('id') id: string, @Body() body: CheckoutDto) {
+    return this.portal.checkout(id, body?.returnOrigin);
   }
 
   @Post('orders/:id/verify-payment')

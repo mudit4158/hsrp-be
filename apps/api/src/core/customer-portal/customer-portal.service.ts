@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import type { ComplaintRequest, CustomerOrderRequest, OtpRequest } from '@hsrp/contracts';
+import { env } from '../../platform/config/env';
 import { requestContext } from '../../platform/context/request-context';
 import { PrismaService } from '../../platform/database/prisma.service';
 import { Problem } from '../../platform/http/problem';
@@ -16,6 +17,24 @@ import { MastersService } from '../masters/masters.service';
 import { OrderService } from '../order-intake/order.service';
 import { VehicleCheckService } from '../order-intake/vehicle-check.service';
 import { istDate, SUBJECT } from '../shared/subjects';
+
+/** Accepts the configured web origin, localhost, or a private-network address (local deployment only). */
+export function allowedOrigin(origin?: string): string | null {
+  if (!origin) return null;
+  let u: URL;
+  try {
+    u = new URL(origin);
+  } catch {
+    return null;
+  }
+  if (!['http:', 'https:'].includes(u.protocol)) return null;
+  const host = u.hostname;
+  const ok =
+    u.origin === new URL(env.publicWebUrl).origin ||
+    ['localhost', '127.0.0.1'].includes(host) ||
+    /^10\.|^192\.168\.|^172\.(1[6-9]|2\d|3[01])\./.test(host);
+  return ok ? u.origin : null;
+}
 
 /** Orchestrates the public portal: Apply HSRP, HSRP Status and HSRP Support. */
 @Injectable()
@@ -148,17 +167,23 @@ export class CustomerPortalService implements OnModuleInit {
       amountPaise: o.amountPaise,
       rejectionReason: o.rejectionReason,
       createdAt: o.createdAt,
-      centre: dealer ? { name: dealer.name, city: dealer.city, address: dealer.address } : null,
+      centre: dealer ? { code: dealer.code, name: dealer.name, city: dealer.city, address: dealer.address } : null,
       booking: booking ? { date: booking.slotDate, slot: booking.slotStart, status: booking.status, rescheduleCount: booking.rescheduleCount } : null,
       payment: payment ? { status: payment.status, txnId: payment.txnId, amountPaise: payment.amountPaise } : null,
       timeline: history.map((h) => ({ status: h.toStatus, at: h.createdAt, note: h.note })),
     };
   }
 
-  async checkout(orderId: string) {
+  /**
+   * Starts hosted checkout. The portal may pass its own origin so the gateway returns the browser to the
+   * address the customer is using (dev server, Docker web port or a LAN address); anything else falls back
+   * to PUBLIC_WEB_URL.
+   */
+  async checkout(orderId: string, returnOrigin?: string) {
     const o = await this.myOrder(orderId);
     if (o.status !== 'AWAITING_PAYMENT' || !o.paymentId) throw Problem.conflict(`Order is ${o.status}; nothing to pay`, 'not-awaiting-payment');
-    return this.payments.checkout(o.paymentId);
+    const origin = allowedOrigin(returnOrigin) ?? env.publicWebUrl;
+    return this.payments.checkout(o.paymentId, { returnUrl: `${origin}/portal/payment-return?orderId=${o.id}` });
   }
 
   async verifyPayment(orderId: string) {
