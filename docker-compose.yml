@@ -24,8 +24,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
+      SEED_PASSWORD: ${SEED_PASSWORD:?Copy .env.example to .env and set SEED_PASSWORD (the demo users' password)}
       DATABASE_URL: postgresql://${POSTGRES_USER:-hsrp}:${POSTGRES_PASSWORD:-hsrp_local_only}@db:5432/${POSTGRES_DB:-hsrp}
       API_HOST: 0.0.0.0
       API_PORT: 3000
