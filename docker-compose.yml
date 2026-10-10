@@ -32,11 +32,11 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-hsrp}:${POSTGRES_PASSWORD:-hsrp_local_only}@db:5432/${POSTGRES_DB:-hsrp}
       API_HOST: 0.0.0.0
       API_PORT: 3000
-      INTERNAL_API_URL: http://localhost:3000
+      INTERNAL_API_URL: http://127.0.0.1:3000
     ports:
       - "${API_PORT:-3000}:3000"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/v1/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/v1/health || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 60
