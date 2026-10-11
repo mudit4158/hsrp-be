@@ -18,6 +18,20 @@ commit. Decisions referenced (Dnn) are in [DECISIONS.md](DECISIONS.md).
 | F-06 | Masters screen calls a hook inside a loop | P3 | Open | `apps/web/src/pages/Masters.tsx` builds reference lookups with `useQuery` inside `map`. Works because the tab remounts per resource, but breaks the rules of hooks. Replace with `useQueries`. |
 | F-07 | `demo:e2e` uses up demo vehicles | P3 | Open | Each run consumes vehicles from the `demo-*` and `oem-*-sample` pools; after several runs they run out and a reseed is needed. Let the script create its own fictional VAHAN records instead. |
 
+## Ownership checks (right to order a plate)
+
+Every order is checked with VAHAN (registration + last 5 of chassis and engine, state, existing plates). That proves the
+vehicle exists and the person has its documents, **not** that they own it or sold it. Only OEM API orders are fully
+vouched for (signed request + chassis in the OEM's catalogue). The VAHAN sample contract (D3) returns no owner name,
+owner mobile or selling dealer, which limits what can be checked. Business question: B-04.
+
+| ID | Item | Priority | Status | Notes |
+| --- | --- | --- | --- | --- |
+| O-01 | Customer OTP must go to the VAHAN-registered mobile | P2 | Blocked | Today the portal sends the OTP to whatever mobile the customer types, so it proves a phone, not ownership. Send the OTP to the mobile registered with VAHAN for that vehicle (VAHAN sends it, or returns a masked number we send to). Blocked on the VAHAN contract (D3). Becomes **P1 before the portal is re-enabled** (B-01). |
+| O-02 | Dealer must be the selling dealer | P2 | Open | Any dealer with a vehicle's registration, chassis and engine numbers can order for it. Check the vehicle was sold through this dealer: the selling-dealer code on the VAHAN record, or OEM sales/invoice data for the chassis. Interim step: flag (or send to approval) orders where the dealer is not mapped to the vehicle's maker. |
+| O-03 | OEM file orders are not vouched for | P2 | Open | Kranti CSV orders get no catalogue check (D4) and staff upload the file, so nothing proves it came from the OEM. Turn on the catalogue check for CSV OEMs, or require signed files / the OEM API instead of staff uploads. |
+| O-04 | Replacement approval checklist | P3 | Open | Operations approve replacements by looking at the evidence file. Add a checklist to the approval (name on the evidence matches the owner; police report number and date for theft) so the manual check is consistent and recorded. |
+
 ## Not built yet
 
 | ID | Item | Priority | Status | Notes |
@@ -44,6 +58,7 @@ commit. Decisions referenced (Dnn) are in [DECISIONS.md](DECISIONS.md).
 | --- | --- | --- | --- | --- |
 | B-01 | Re-enable the customer portal? | P2 | Open | Disabled by request (D37). If it comes back: import `CustomerPortalModule` in `core.module.ts`, restore the `CUSTOMER` role permissions, restore the `/portal` route, un-skip flows D and K. Fix F-01 first either way. |
 | B-02 | The nine open points behind D1–D9 | P2 | Open | Role per state, states served, VAHAN contract, OEMs and formats, portal scope, gateway and SMS provider, vendor product, volumes, several companies. The prototype uses the defaults in DECISIONS.md. |
+| B-04 | How must the right to order be proven? | P2 | Open | Decide the rule per channel: owner (OTP to the VAHAN-registered mobile?), dealer (selling dealer only, or any mapped dealer?), OEM (catalogue / signed data for every OEM?). Also whether VAHAN can return owner or selling-dealer data. Drives O-01 to O-04. |
 | B-03 | Customer accounts | P3 | Open | Customers use OTP only (D12). Fleet owners may want a "My vehicles" login; the identity module already supports OTP sign-in. |
 
 ## Before any real use (hardening)
