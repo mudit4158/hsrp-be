@@ -32,6 +32,25 @@ owner mobile or selling dealer, which limits what can be checked. Business quest
 | O-03 | OEM file orders are not vouched for | P2 | Open | Kranti CSV orders get no catalogue check (D4) and staff upload the file, so nothing proves it came from the OEM. Turn on the catalogue check for CSV OEMs, or require signed files / the OEM API instead of staff uploads. |
 | O-04 | Replacement approval checklist | P3 | Open | Operations approve replacements by looking at the evidence file. Add a checklist to the approval (name on the evidence matches the owner; police report number and date for theft) so the manual check is consistent and recorded. |
 
+## Fitment proof (are the photos real, is it the right vehicle?)
+
+Today uploads are checked for type (as declared by the upload), size and presence only; the SHA-256 is stored but not
+compared. "Right vehicle" rests on the plates' chain of custody (allocated → challan → inwarded by this dealer) and on
+the dealer ticking "the plates carry these laser codes" — the app fills the codes in itself. Nothing checks photo
+content, location or capture time, and staff only see photos if they open the order. Business question: B-05.
+
+| ID | Item | Priority | Status | Notes |
+| --- | --- | --- | --- | --- |
+| P-01 | Read the laser code off the plate at fitment | P2 | Open | Replace the tick-box: the app reads the code with the camera (on-device text recognition) and sends what it read; the server compares it with the allocation. Mismatch → refuse or flag. |
+| P-02 | Check what the photos show | P3 | Open | Read the registration number and laser code from the plate photos and the last 5 of the chassis from a required chassis photo (`fitment.photoRules`); flag mismatches for review instead of posting to VAHAN. Needs reliable plate reading. |
+| P-03 | Record where and when photos were taken | P2 | Open | The app sends GPS and capture time (the API already accepts `latitude` / `longitude`). Flag fitments far from the dealer's site, or taken long before submission. Needs dealer site coordinates in the masters. |
+| P-04 | Catch reused photos | P2 | Open | Compare each photo's SHA-256 with earlier fitments, plus a perceptual hash to catch lightly edited copies; flag duplicates. |
+| P-05 | Trust the capturing device | P2 | Open | Remove the debug "Test photo" button from release builds and add Play Integrity (app attestation) so the server knows uploads come from the genuine app. Links to N-03 (release build). |
+| P-06 | Fitment review queue | P2 | Open | Operations review flagged fitments plus a random sample. Flagged fitments are held back from VAHAN until approved (reuse the Approvals utility). |
+| P-07 | Owner confirmation | P3 | Open | Put the fitted laser codes in the completion SMS so the owner can report a mismatch through Support. Template change only (`FITMENT_DONE`). |
+| P-08 | Stricter file checks | P3 | Open | Detect the real file type from its contents (not the declared type); refuse fitment photos without camera metadata (EXIF). |
+| P-09 | Confirm the physical plate at embossing and QC | P2 | Open | Issuance picks the next free code in the box, and the operator is trusted to emboss that physical plate; QC can switch codes by hand. Scan the code at embossing or QC so the allocated code and the physical plate are proven to match. |
+
 ## Not built yet
 
 | ID | Item | Priority | Status | Notes |
@@ -59,6 +78,7 @@ owner mobile or selling dealer, which limits what can be checked. Business quest
 | B-01 | Re-enable the customer portal? | P2 | Open | Disabled by request (D37). If it comes back: import `CustomerPortalModule` in `core.module.ts`, restore the `CUSTOMER` role permissions, restore the `/portal` route, un-skip flows D and K. Fix F-01 first either way. |
 | B-02 | The nine open points behind D1–D9 | P2 | Open | Role per state, states served, VAHAN contract, OEMs and formats, portal scope, gateway and SMS provider, vendor product, volumes, several companies. The prototype uses the defaults in DECISIONS.md. |
 | B-04 | How must the right to order be proven? | P2 | Open | Decide the rule per channel: owner (OTP to the VAHAN-registered mobile?), dealer (selling dealer only, or any mapped dealer?), OEM (catalogue / signed data for every OEM?). Also whether VAHAN can return owner or selling-dealer data. Drives O-01 to O-04. |
+| B-05 | How strict is fitment proof? | P2 | Open | Per check (P-01 to P-09): block the fitment, or accept it and flag for review? Should flagged fitments wait before the VAHAN post? What sample rate for random review? Is location capture acceptable to dealers? |
 | B-03 | Customer accounts | P3 | Open | Customers use OTP only (D12). Fleet owners may want a "My vehicles" login; the identity module already supports OTP sign-in. |
 
 ## Before any real use (hardening)
