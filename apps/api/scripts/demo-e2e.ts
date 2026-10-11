@@ -166,8 +166,15 @@ async function fitment(orderId: string, user: string, idem = randomUUID()) {
 // ------------------------------------------------------------------------------------------ flows
 
 const ctx: Record<string, Json> = {};
-const results: Array<{ flow: string; ok: boolean; note: string; ms: number }> = [];
-async function flow(name: string, fn: () => Promise<string>) {
+const results: Array<{ flow: string; ok: boolean; skipped?: boolean; note: string; ms: number }> = [];
+/** The customer portal is disabled (decision D37); flows that need it are reported as skipped. */
+const PORTAL_ENABLED = false;
+async function flow(name: string, fn: () => Promise<string>, opts: { needsPortal?: boolean } = {}) {
+  if (opts.needsPortal && !PORTAL_ENABLED) {
+    results.push({ flow: name, ok: true, skipped: true, note: 'customer portal disabled (D37)', ms: 0 });
+    console.log(`  – ${name} — skipped: customer portal disabled (D37)`);
+    return;
+  }
   const t = Date.now();
   try {
     const note = await fn();
@@ -283,7 +290,7 @@ async function main() {
       return `${paid.orderNo} booked ${date} ${slot.start} at ${centres[0].name}, OTP confirmed, paid on the mock gateway, receipt PDF downloaded`;
     }
     throw new Fail('no usable demo-old vehicle');
-  });
+  }, { needsPortal: true });
 
   await flow('E. Station production', async () => {
     const o = ctx.A;
@@ -439,6 +446,19 @@ async function main() {
     const overdue = await ok('GET', '/api/v1/tickets?overdue=true', as('ops'));
     assert(overdue.total >= 1 && overdue.items.every((x: Json) => x.overdue), 'ageing against 15 days is visible');
     return `${t.ticketNo} raised (due ${String(t.dueAt).slice(0, 10)}), answered by staff, status checked by OTP; ${overdue.total} complaints past 15 days`;
+  }, { needsPortal: true });
+
+  await flow('Customer portal detached (D37)', async () => {
+    for (const path of ['/api/v1/public/states', '/api/v1/public/prices?stateCode=OD', '/api/v1/public/vehicle-checks']) {
+      const r = await call(path.endsWith('checks') ? 'POST' : 'GET', path, { body: path.endsWith('checks') ? {} : undefined });
+      assert(r.status === 404, `${path} should be gone, got ${r.status}`);
+    }
+    const otp = await call('POST', '/api/v1/public/otp', { body: { purpose: 'SUPPORT', mobile: '9000000001' } });
+    assert(otp.status === 404, `OTP endpoint should be gone, got ${otp.status}`);
+    const roles: Json[] = await ok('GET', '/api/v1/iam/roles', as('admin'));
+    const customer = roles.find((r) => r.code === 'CUSTOMER');
+    assert(customer && customer.permissions.length === 0, `CUSTOMER role should grant nothing, has ${customer?.permissions}`);
+    return 'all /api/v1/public routes return 404; CUSTOMER role has no permissions';
   });
 
   await flow('L. Oversight', async () => {
@@ -459,7 +479,8 @@ async function main() {
 
   // ------------------------------------------------------------------------------------------ summary
   const failed = results.filter((r) => !r.ok);
-  console.log(`\n${results.length - failed.length}/${results.length} flows passed in ${(results.reduce((s, r) => s + r.ms, 0) / 1000).toFixed(1)} s`);
+  const skipped = results.filter((r) => r.skipped).length;
+  console.log(`\n${results.length - failed.length - skipped}/${results.length - skipped} flows passed (${skipped} skipped) in ${(results.reduce((s, r) => s + r.ms, 0) / 1000).toFixed(1)} s`);
   if (failed.length) process.exit(1);
 }
 

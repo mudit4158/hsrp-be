@@ -5,11 +5,18 @@ dealers, OEMs and customers, embossing-station production, dispatch, dealer inwa
 VAHAN post — with every external system mocked.
 
 - **API** — NestJS + Prisma + PostgreSQL, REST under `/api/v1`, OpenAPI at `/api/docs`
-- **Web** — React + Vite: staff app, dealer views and the public customer portal
+- **Web** — React + Vite: staff app and dealer views (the public customer portal is disabled, see below)
 - **Android** — Kotlin + Jetpack Compose dealer app with an offline queue
 - **Mocks** — VAHAN, OEM systems, a PayU-shaped payment gateway, SMS and e-mail, driven from a simulator screen
 
 All data is fictional. Nothing here contacts a real VAHAN, OEM, payment or SMS system.
+
+> **Customer portal disabled (decision D37).** The portal's code is still in the repo (`apps/api/src/core/customer-portal`,
+> `apps/web/src/portal`) but it is detached: no `/api/v1/public/*` routes, no `/portal` pages, and the `CUSTOMER` role
+> grants nothing. Customer orders, online payment and complaints raised by customers (flows D and K) are therefore not
+> available. To re-enable: import `CustomerPortalModule` in `apps/api/src/core/core.module.ts`, give the `CUSTOMER` role
+> `portal.customer` and `payments.pay` again (seed fixtures or Users & roles), and restore the `/portal` route in
+> `apps/web/src/App.tsx`.
 
 Design background: [High-Level Design](https://claude.ai/code/artifact/d7fce61b-0fe9-4bae-a8b2-7286684b9de4) ·
 decisions taken while building: [docs/DECISIONS.md](docs/DECISIONS.md).
@@ -35,7 +42,6 @@ The first start builds the images, runs the migrations and seeds the demo data (
 | What | URL |
 | --- | --- |
 | Web app (staff, dealers) | http://localhost:8080 |
-| Customer portal | http://localhost:8080/portal |
 | API | http://localhost:3000/api/v1 |
 | OpenAPI docs | http://localhost:3000/api/docs |
 | PostgreSQL | localhost:5433 (user `hsrp`, password from `.env`) |
@@ -51,7 +57,7 @@ The first start builds the images, runs the migrations and seeds the demo data (
 | `dealer.wb01` | Dealer, Howrah Wheels (WB) | Web: place and track orders. Android: everything a dealer does |
 | `dealer.od02` | Dealer, Kalinga Motors (OD) | Same |
 
-Customers sign in with an OTP only. OTPs are real random codes; read them on **Simulator → SMS & e-mail**. With
+OTPs (used only by the disabled customer portal) are real random codes shown on **Simulator → SMS & e-mail**; with
 `DEMO_MODE=true` the fixed code `123456` is also accepted.
 
 **Start over:** `docker compose down -v` then `docker compose up`, or set `SEED_RESET=true` in `.env` and restart the `api` service.
@@ -63,7 +69,8 @@ pnpm install
 pnpm demo:e2e
 ```
 
-`demo:e2e` runs flows A–L (below) through the API against `http://localhost:3000` (override with `API_BASE_URL`) and
+`demo:e2e` runs flows A–L (below) through the API (D and K are reported as skipped while the portal is disabled, and
+an extra check confirms the portal endpoints are gone) against `http://localhost:3000` (override with `API_BASE_URL`) and
 prints one line per flow. It is re-runnable; each run uses fresh demo vehicles. After many runs the sample pools
 run out — reseed.
 
@@ -139,14 +146,14 @@ demos are on **Simulator → VAHAN test vehicles** (scenario `demo-new` for deal
 | **A. Dealer order** | Android as `dealer.wb01` (or web) | New order → registration, chassis, engine of a `demo-new` WB vehicle → order goes RECEIVED → VALIDATED → CONFIRMED in a few seconds. Web **Wallets** shows the hold then the capture on the shared wallet `GRP-EAST-A`. |
 | **B. OEM order by API** | Simulator | **Push a Zenmo API order** → an order appears (catalogue check + VAHAN). **Repeat last push (same key)** → "replayed: no duplicate created". OEM callbacks tab shows the status sent back. |
 | **C. OEM order by file** | Simulator / OEM files & uploads | **Upload a sample Kranti CSV** → open the file under **OEM files & uploads**: good rows become orders; bad rows are listed; **Download error report**. |
-| **D. Customer order** | http://localhost:8080/portal | Apply HSRP → state WB, a `demo-old` vehicle (last 5 of chassis and engine) → city, centre, date, slot → details → OTP (from the simulator) → Pay → mock gateway **Pay (simulate success)** → back on the portal: confirmed → **Download receipt**. |
+| **D. Customer order** *(disabled, D37)* | ~~Customer portal~~ | Apply HSRP → state WB, a `demo-old` vehicle (last 5 of chassis and engine) → city, centre, date, slot → details → OTP (from the simulator) → Pay → mock gateway **Pay (simulate success)** → back on the portal: confirmed → **Download receipt**. |
 | **E. Station production** | `station.kol` | **Issuance**: dealer WB01 → tick the order → click a suggested box (or type `BX-KOL1-…`) → Lock boxes → Allocate & create job card → PDF. **Quality check** → Pass. **Sticker printing** → Print (cars only; others skip it). **Delivery challans** → dealer → tick → Create challan (PDF opens). |
 | **F. Dealer inward** | Android `dealer.wb01` → Inward | Open the challan → Accept (or Reject a plate with a reason) → Submit → Sync tab shows Done; web order is INWARDED. |
 | **G. Fitment** | Android → Fitment | Search the registration → laser codes → tick the confirmation → take front and rear photos → Submit. Works in airplane mode: the item waits in the Sync tab and is sent when back online. The server posts to VAHAN; the order becomes COMPLETED and the owner gets an SMS. |
 | **H. Rejection and re-issue** | `station.kol` / Android | QC → **Reject** a plate with a reason → **Rejection approval** → Decide → Disapprove (back to QC passed). For another order, reject a plate at Android inward → Rejection approval → **Approve (re-issue)** → the order is CONFIRMED with only that plate pending → issue, QC, print, and a **second challan** with just that plate. |
 | **I. Replacement order** | Web `dealer.wb01` → Place order | Order type Replacement, a `demo-has-plates` vehicle, plate(s), reason, attach a photo → AWAITING_APPROVAL with the wallet amount held. As `ops`: **Approvals** → view the evidence → Approve with remarks → CONFIRMED. |
 | **J. VAHAN down** | Simulator + Android | Set VAHAN to **down** → record a fitment → the order stays FITTED; **Integration monitor** shows the post retrying with back-off. Set VAHAN to **normal** → **Replay all VAHAN posts** → COMPLETED. (Seeded FITTED orders are already in the manual queue.) |
-| **K. Complaint** | Portal → HSRP Support | Raise a complaint (OTP) → ticket number by SMS. Staff: **Complaints** → answer and set In progress. Portal → Complaint status (OTP to the number on the complaint) shows the reply. The "Past 15 days" tab shows ageing. |
+| **K. Complaint** *(disabled, D37)* | ~~Portal → HSRP Support~~ | Raise a complaint (OTP) → ticket number by SMS. Staff: **Complaints** → answer and set In progress. Portal → Complaint status (OTP to the number on the complaint) shows the reply. The "Past 15 days" tab shows ageing. |
 | **L. Oversight** | `admin` / `ops` | **Dashboard** (orders by status, fitted today, VAHAN posts pending, stock, ageing) → any order → timeline, plates, challans, fitment photos, approvals, payments, audit, events. **Audit log**, **Reports** → run → Export CSV. |
 
 ## 6. How it is built

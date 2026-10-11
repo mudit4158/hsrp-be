@@ -6,7 +6,7 @@ import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { requestContext } from '../../platform/context/request-context';
 import { Db, PrismaService } from '../../platform/database/prisma.service';
-import { Public, RequirePermission } from '../../platform/http/decorators';
+import { RequirePermission } from '../../platform/http/decorators';
 import { Problem } from '../../platform/http/problem';
 import { AuditService } from '../../utility/audit/audit.service';
 import { bestRule, chargeApplies, PriceQuery } from './price-match';
@@ -148,11 +148,6 @@ export class PricingController {
     return this.pricing.quote({ ...q, at: new Date() }, { greenStrip: q.greenStrip === 'true' });
   }
 
-  @Get('public/prices')
-  @Public()
-  published(@Query('stateCode') stateCode: string) {
-    return this.pricing.published(stateCode);
-  }
 }
 
 @Module({ controllers: [PricingController], providers: [PricingService], exports: [PricingService] })

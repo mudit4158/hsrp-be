@@ -3,6 +3,8 @@ module.exports = {
   testEnvironment: 'node',
   rootDir: '.',
   testMatch: ['<rootDir>/src/**/*.spec.ts'],
+  // Database tests truncate ~70 tables before each test; on Docker for Windows that can exceed Jest's 5 s default.
+  testTimeout: 30_000,
   transform: {
     '^.+\.ts$': [
       '@swc/jest',

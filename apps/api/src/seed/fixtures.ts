@@ -26,7 +26,8 @@ export const ROLES: Array<{ code: string; name: string; permissions: string[] }>
     permissions: ['dealer.app', 'orders.read', 'orders.create', 'orders.cancel', 'inward.record', 'fitment.record', 'files.upload', 'files.read'],
   },
   { code: 'OEM_CLIENT', name: 'OEM system (API client)', permissions: ['oem.orders.push'] },
-  { code: 'CUSTOMER', name: 'Customer (OTP session)', permissions: ['portal.customer', 'payments.pay'] },
+  // Customer portal disabled (D37): the role exists but grants nothing.
+  { code: 'CUSTOMER', name: 'Customer (portal disabled)', permissions: [] },
 ];
 
 export const STATES = [

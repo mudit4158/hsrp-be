@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { BookingModule } from './booking/booking.module';
-import { CustomerPortalModule } from './customer-portal/customer-portal.module';
 import { DispatchModule } from './dispatch/dispatch.module';
 import { FitmentModule } from './fitment/fitment.module';
 import { InventoryModule } from './inventory/inventory.module';
@@ -11,7 +10,13 @@ import { PricingModule } from './pricing/pricing.module';
 import { ProductionModule } from './production/production.module';
 import { RejectionModule } from './rejection/rejection.module';
 
-/** HSRP-specific modules. They may use utilities and ports, never adapters. */
+/**
+ * HSRP-specific modules. They may use utilities and ports, never adapters.
+ *
+ * The customer portal (core/customer-portal) is disabled (decision D37): its module is not imported, so none of
+ * its /api/v1/public/* routes or event subscribers exist. To bring it back, import CustomerPortalModule here,
+ * restore the CUSTOMER role's permissions and re-add the web routes.
+ */
 @Module({
   imports: [
     MastersModule,
@@ -23,7 +28,6 @@ import { RejectionModule } from './rejection/rejection.module';
     ProductionModule,
     DispatchModule,
     FitmentModule,
-    CustomerPortalModule,
     OversightModule,
   ],
 })
