@@ -19,7 +19,8 @@ All data is fictional. Nothing here contacts a real VAHAN, OEM, payment or SMS s
 > `apps/web/src/App.tsx`.
 
 Design background: [High-Level Design](https://claude.ai/code/artifact/d7fce61b-0fe9-4bae-a8b2-7286684b9de4) ·
-decisions taken while building: [docs/DECISIONS.md](docs/DECISIONS.md).
+decisions taken while building: [docs/DECISIONS.md](docs/DECISIONS.md) ·
+open items and pending fixes: [docs/TRACKER.md](docs/TRACKER.md).
 
 ---
 
