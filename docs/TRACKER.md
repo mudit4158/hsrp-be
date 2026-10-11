@@ -50,6 +50,9 @@ content, location or capture time, and staff only see photos if they open the or
 | P-07 | Owner confirmation | P3 | Open | Put the fitted laser codes in the completion SMS so the owner can report a mismatch through Support. Template change only (`FITMENT_DONE`). |
 | P-08 | Stricter file checks | P3 | Open | Detect the real file type from its contents (not the declared type); refuse fitment photos without camera metadata (EXIF). |
 | P-09 | Confirm the physical plate at embossing and QC | P2 | Open | Issuance picks the next free code in the box, and the operator is trusted to emboss that physical plate; QC can switch codes by hand. Scan the code at embossing or QC so the allocated code and the physical plate are proven to match. |
+| P-10 | QR codes on our own documents | P3 | Open | Add a QR with the order / challan / job card number to the job card, challan and sticker PDFs (layouts are data in `util_doc_template`; needs a `qr` element in the PDF renderer). Station users and dealers scan it to open the right record. Android: ML Kit barcode scanning (on-device, works offline). Web: USB scanner or webcam. |
+| P-11 | QR labels on plate boxes | P3 | Blocked | A QR on each box with the box number (and the codes inside) so stock receipt and issuance become a scan instead of typing box numbers. Blocked on the plate manufacturer printing it, or decide to print our own labels at stock receipt. |
+| P-12 | No free typing of laser codes | P2 | Open | QC "Switch code" is the only place a full code is typed by hand. Make it scan first (text recognition of the etched code, as in P-01 / P-09) with typing as a fallback that must be entered twice to catch typos. |
 
 ## Not built yet
 
@@ -79,6 +82,7 @@ content, location or capture time, and staff only see photos if they open the or
 | B-02 | The nine open points behind D1–D9 | P2 | Open | Role per state, states served, VAHAN contract, OEMs and formats, portal scope, gateway and SMS provider, vendor product, volumes, several companies. The prototype uses the defaults in DECISIONS.md. |
 | B-04 | How must the right to order be proven? | P2 | Open | Decide the rule per channel: owner (OTP to the VAHAN-registered mobile?), dealer (selling dealer only, or any mapped dealer?), OEM (catalogue / signed data for every OEM?). Also whether VAHAN can return owner or selling-dealer data. Drives O-01 to O-04. |
 | B-05 | How strict is fitment proof? | P2 | Open | Per check (P-01 to P-09): block the fitment, or accept it and flag for review? Should flagged fitments wait before the VAHAN post? What sample rate for random review? Is location capture acceptable to dealers? |
+| B-06 | Machine-readable code on the plate | P2 | Open | Does the HSRP plate already carry a machine-readable code (QR or barcode) besides the etched laser code, and may one be added? Plate design is regulated, so adding a QR to the plate face likely needs approval. If none exists, plate scanning uses text recognition of the laser code (P-01, P-09, P-12). A QR on a peel-off label or packaging does not prove which plate is on the vehicle. |
 | B-03 | Customer accounts | P3 | Open | Customers use OTP only (D12). Fleet owners may want a "My vehicles" login; the identity module already supports OTP sign-in. |
 
 ## Before any real use (hardening)
