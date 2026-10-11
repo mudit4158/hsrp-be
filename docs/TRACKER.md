@@ -28,6 +28,7 @@ commit. Decisions referenced (Dnn) are in [DECISIONS.md](DECISIONS.md).
 | N-04 | Worker as its own process | P3 | Open | Outbox and scheduled jobs run inside the API (`WORKER_ENABLED=true`). Splitting needs only a second entry point that boots the same module with HTTP off. |
 | N-05 | Final print layouts | P3 | Blocked | Job card, challan, sticker and receipt are simple PDFs (D16), not regulatory formats. Needs the official layouts. |
 | N-06 | Unit tests for production and dispatch services | P3 | Open | Covered end to end by `demo:e2e` (flows E, F, H) but not by unit tests. |
+| N-07 | Separate the repositories | P2 | Open | Today one monorepo holds the separately deployed apps (`apps/api`, `apps/web`, `apps/android`, shared `packages/contracts`). Split into `hsrp-dms-be` (API, Prisma migrations, seed, `demo:e2e`, Docker for API + DB) and `hsrp-dms-fe` (web app, its Dockerfile and nginx config); Android as a third repo or inside the FE repo. Keep each part's git history (`git filter-repo` / subtree split). Decide how `packages/contracts` is shared: copied into each repo, or published as a versioned package. Each repo gets its own README, `.env.example` and compose file; the dependency check and module-table check move with the BE repo. Matches the DocVault layout (`docvault-fe` / `docvault-be`). |
 
 ## To verify
 
