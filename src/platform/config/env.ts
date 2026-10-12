@@ -1,8 +1,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-// When running outside Docker, load the monorepo-root .env (Docker passes variables directly).
-const rootEnv = path.resolve(__dirname, '../../../../../.env');
+// When running outside Docker, load the repo-root .env (Docker passes variables directly).
+const rootEnv = path.resolve(__dirname, '../../../.env');
 if (!process.env.DATABASE_URL && fs.existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 
 function str(name: string, fallback?: string): string {

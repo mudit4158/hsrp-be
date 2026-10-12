@@ -167,14 +167,18 @@ export class EventBus implements OnApplicationShutdown {
   }
 
   private async runDue(): Promise<number> {
+    // Due times are written with the Node clock (nextDeliveryState, replay), so compare with the Node clock too;
+    // the database clock (e.g. a Docker VM) can lag by a few milliseconds and make a just-replayed row look not due.
+    const now = new Date();
+    const lockUntil = new Date(now.getTime() + 120_000);
     const claimed = await this.prisma.$queryRaw<Array<{ id: string; seq: number }>>`
       UPDATE util_hub_outbox_delivery d
-      SET status = 'RUNNING', locked_until = now() + interval '2 minutes', updated_at = now()
+      SET status = 'RUNNING', locked_until = ${lockUntil}, updated_at = ${now}
       FROM (
         SELECT d2.id, e.seq FROM util_hub_outbox_delivery d2
         JOIN util_hub_outbox_event e ON e.id = d2.event_id
-        WHERE (d2.status IN ('PENDING', 'FAILED') AND d2.next_attempt_at <= now())
-           OR (d2.status = 'RUNNING' AND d2.locked_until < now())
+        WHERE (d2.status IN ('PENDING', 'FAILED') AND d2.next_attempt_at <= ${now})
+           OR (d2.status = 'RUNNING' AND d2.locked_until < ${now})
         ORDER BY e.seq
         LIMIT 50
         FOR UPDATE OF d2 SKIP LOCKED

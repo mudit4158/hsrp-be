@@ -4,6 +4,10 @@ Mirror of the table "Prototype defaults and decision log" in the
 [HLD](https://claude.ai/code/artifact/d7fce61b-0fe9-4bae-a8b2-7286684b9de4). If the two disagree, the HLD wins.
 D1–D18 were set before the build; D19 onwards were added while building, following handover section 13.
 
+This file is the single decision log for all three repos (hsrp-dms-be, hsrp-dms-fe, hsrp-dms-android); the
+frontend and Android repos link here. Add a decision with the maintain-docs skill: next free number, append a row
+here **and** to the HLD table (append only, never edit existing rows).
+
 | # | Open point | Prototype default | Added by |
 | --- | --- | --- | --- |
 | D1 | Role in each state | Both order sources: OEM and dealer orders for new vehicles, customer orders for old vehicles. VAHAN adapter has validate and post-fitment; inventory upload is a logged stub. | Claude, 10 Oct 2026 |
@@ -43,3 +47,7 @@ D1–D18 were set before the build; D19 onwards were added while building, follo
 | D35 | Dashboards and reports across modules | A read-only core "oversight" module builds the dashboard, order detail and reports by calling each module's service; it owns no tables, so rule 7 holds. A build check fails if a module touches another module's tables. | Claude Code, 11 Oct 2026 |
 | D36 | Retrying a failed customer payment | The booking is kept and the customer pays again from HSRP Status with the same payment record. A real PayU integration would need a new transaction id per attempt. | Claude Code, 11 Oct 2026 |
 | D37 | Customer portal in the prototype | Disabled on request. The code stays in the repo but is detached: the portal module is not loaded (every /api/v1/public route returns 404), the CUSTOMER role grants no permissions, and the web app has no /portal routes or links. Flows D and K are skipped in demo:e2e. Re-enable by importing CustomerPortalModule in core.module.ts, restoring the CUSTOMER role's permissions and the web routes. | Claude Code, 11 Oct 2026 (user request) |
+| D38 | Repository layout | Three repos side by side under C:\workspace\hsrp\: hsrp-dms-be (API, database, migrations, seed, demo:e2e, shared contracts, decision log), hsrp-dms-fe (web app) and hsrp-dms-android (dealer app). Each kept its own git history (git filter-branch). The old monorepo at C:\workspace\hsrp-dms stays as a read-only archive. | Claude Code, 12 Oct 2026 (user request) |
+| D39 | Sharing the request/response contracts | The backend owns packages/contracts. The frontend keeps a synced copy in src/contracts (`pnpm contracts:sync`); `pnpm contracts:check` and the frontend's pre-commit hook fail when the copy differs from a sibling backend checkout. The Android app keeps its own Kotlin models (data/Api.kt), updated by hand when the API changes. | Claude Code, 12 Oct 2026 |
+| D40 | How the web app reaches the API | Separate Compose projects (hsrp-dms-be, hsrp-dms-fe). The web container proxies /api and /mock-gateway to API_UPSTREAM (default http://host.docker.internal:3000); the Vite dev server proxies to VITE_API_PROXY. | Claude Code, 12 Oct 2026 |
+| D41 | Keeping documentation current | Every repo has AGENTS.md (CLAUDE.md imports it), a maintain-docs skill in .claude/skills, scripts/docs-check.mjs and a pre-commit hook in .githooks. The hook blocks commits on doc inconsistencies (missing docs, tracker IDs, decision numbering, undocumented scripts, contracts drift, schema change without migration) and warns when code changes without doc changes. | Claude Code, 12 Oct 2026 (user request) |

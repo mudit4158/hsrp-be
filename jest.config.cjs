@@ -11,7 +11,7 @@ module.exports = {
       { jsc: { parser: { syntax: 'typescript', decorators: true }, transform: { legacyDecorator: true, decoratorMetadata: true }, target: 'es2022' } },
     ],
   },
-  moduleNameMapper: { '^@hsrp/contracts$': '<rootDir>/../../packages/contracts/src/index.ts' },
+  moduleNameMapper: { '^@hsrp/contracts$': '<rootDir>/packages/contracts/src/index.ts' },
   globalSetup: '<rootDir>/test/global-setup.cjs',
   setupFiles: ['<rootDir>/test/env.cjs'],
 };

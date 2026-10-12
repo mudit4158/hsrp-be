@@ -8,7 +8,7 @@ import { createHmac, randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-const rootEnv = path.resolve(__dirname, '../../../.env');
+const rootEnv = path.resolve(__dirname, '../.env');
 if (!process.env.SEED_PASSWORD && fs.existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 const BASE = (process.env.API_BASE_URL ?? 'http://localhost:3000').replace(/\/$/, '');
 const PASSWORD = process.env.SEED_PASSWORD ?? '';
