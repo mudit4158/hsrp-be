@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.adapters.payment import gateway as mock_payu_gateway
 from app.adapters.simulator import router as simulator
 from app.container import container
+from app.contracts import openapi
 from app.core.billing import router as billing
 from app.core.booking import router as booking
 from app.core.dispatch import router as dispatch
@@ -71,6 +72,7 @@ def create_app() -> FastAPI:
     app.add_middleware(ContextMiddleware)
     app.add_middleware(CORSMiddleware, allow_origin_regex=".*", allow_credentials=False, allow_methods=["*"], allow_headers=["*"], expose_headers=["x-request-id"])
     errors.install(app)
+    openapi.install(app)
 
     api = APIRouter(prefix=API_PREFIX)
     for module in (

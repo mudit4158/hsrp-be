@@ -60,7 +60,7 @@ Progress is tracked in `docs/TRACKER.md` (item N-12).
 | P2 Utilities | Done (13 Oct 2026) | identity, configuration, audit, notification, file storage, payments, wallet, scheduling, documents (PDF layout DSL on ReportLab), import/export, approvals, tickets, reporting; the mock PayU adapter and gateway pages were pulled forward from P3. Every utility route matches NestJS (`scripts/route_parity.py`). Wallet Jest spec ported (incl. concurrent holds); 42 pytest tests. Not ported: the OTP service and customer tokens, used only by the detached customer portal (D37). |
 | P3 Adapters | Done (13 Oct 2026) | mock VAHAN, OEM order source and catalogue, mock state, simulator endpoints; OCR with the Tesseract binary through pytesseract (greyscale + block layout reads 40/40 simulator plates; the Windows installer path is found automatically) |
 | P4 Core | Done (13 Oct 2026) | masters, pricing, inventory, order intake (order service, state machine, validation flow, OEM intake and vehicle data), booking, production with plate OCR, dispatch, rejection, fitment, postpaid billing, oversight and all reports. All 142 NestJS routes exist in FastAPI (`scripts/route_parity.py`). Pure-rule and allocation Jest specs ported; 67 pytest tests. |
-| P5 Seed and parity | In progress | Seed ported (`python -m app.seed.run`: same fixtures as `app/seed/fixtures.json`, mulberry32 generator bit-identical, so the same fictional vehicles; upgrades D42/D46/D47). **`pnpm demo:e2e` passes 14/14 against the Python API** (`API_BASE_URL=http://localhost:3001`). OCR tuned on real headless-Chrome plate photos: crop the white plate, white out the IND strip, read one line (10/10), full photo as fallback. Next: Dockerfile, OpenAPI contracts, `pnpm sim`. |
+| P5 Seed and parity | In progress | Seed ported (`python -m app.seed.run`: same fixtures as `app/seed/fixtures.json`, mulberry32 generator bit-identical, so the same fictional vehicles; upgrades D42/D46/D47). **`pnpm demo:e2e` passes 14/14 against the Python API** (`API_BASE_URL=http://localhost:3001`). OCR tuned on real headless-Chrome plate photos: crop the white plate, white out the IND strip, read one line (10/10), full photo as fallback. Also: `Dockerfile.python` (Tesseract installed; the entrypoint stamps a Prisma-built database at Alembic 0005 instead of recreating it, then seeds and starts Uvicorn); demo:e2e 14/14 against that container on the NestJS-built database. Contracts: enums and request models published in the OpenAPI document and exported to `openapi.json`; the web app generates `src/contracts/index.ts` from it. Next: `pnpm sim`, then cut-over. |
 
 ## Running the Python API (during the port)
 
@@ -70,6 +70,7 @@ From the repo root, with the Compose database up (`docker compose up -d db`):
 python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"   # once (Python 3.12+)
 .venv/Scripts/alembic upgrade head                               # migrate PY_DATABASE_URL (create the hsrp_py database first)
 .venv/Scripts/python -m app.seed.run                             # seed it (SEED_PASSWORD from .env; SEED_RESET=true to wipe)
+.venv/Scripts/python scripts/export_openapi.py                   # after a route/model/enum change: openapi.json for the web app
 .venv/Scripts/uvicorn app.main:app --reload --port 3001          # API on :3001, docs at /api/docs
 .venv/Scripts/python -m pytest                                   # tests (builds hsrp_py_test from scratch)
 .venv/Scripts/lint-imports                                       # architecture rule 1
@@ -105,6 +106,10 @@ Create the database once with `docker compose exec db psql -U hsrp -d postgres -
 - **Services**: built once in `app/container.py` (the composition root). Modules reach them through
   `app.platform.registry.services()`, never by importing the container (it imports every layer, which would break
   the import-linter contracts).
+- **Contracts**: shared enums live in `app/contracts/enums.py` (`CONSTANTS` names the web app's constant), request
+  models in `app/contracts/schemas.py`. `app/contracts/openapi.py` adds both to the OpenAPI document;
+  `scripts/export_openapi.py` writes `openapi.json` (committed; pytest fails when it is stale) and the web app's
+  `pnpm contracts:sync` generates `src/contracts/index.ts` from it.
 - **Lists**: `q: Page = Depends(page_query)`, then `paginate(s, stmt, q)`; other query parameters are in
   `q.get(name)` (FilteredPageQuery).
 - **Cross-module queries**: a module reads another module's records through that module's service, passing plain
