@@ -18,7 +18,11 @@ def get_path(data: Any, path: str) -> Any:
     for k in path.split("."):
         if data is None:
             return None
-        data = data.get(k) if isinstance(data, dict) else getattr(data, k, None)
+        if k == "length" and isinstance(data, list | str):
+            # Templates are JavaScript-flavoured: {{lines.length}}.
+            data = len(data)
+        else:
+            data = data.get(k) if isinstance(data, dict) else getattr(data, k, None)
     return data
 
 

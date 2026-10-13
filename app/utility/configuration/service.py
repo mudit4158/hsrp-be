@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.platform.context import request_context
 from app.platform.db.base import naive_utc, utcnow
 from app.platform.db.session import Database
+from app.platform.http.json import to_jsonable
 from app.utility.audit.service import AuditService
 from app.utility.configuration.models import ConfigSetting
 
@@ -82,7 +83,7 @@ class SettingsService:
                 key=key,
                 scope_type=scope_type,
                 scope_id=scope_id,
-                value=value,
+                value=to_jsonable(value),
                 effective_from=start,
                 created_by=request_context.actor_id(),
             )

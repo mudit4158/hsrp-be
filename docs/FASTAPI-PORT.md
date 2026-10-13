@@ -58,7 +58,9 @@ Progress is tracked in `docs/TRACKER.md` (item N-12).
 | P0 Scaffold | Done (13 Oct 2026) | Alembic revisions 0001–0005 replay the Prisma migration SQL; `pg_dump -s` of `hsrp_py` equals the Prisma-built `hsrp`. The 75 generated models compare clean against it (pytest `test_models_match_the_migrated_schema`). Health and unknown-route problem bodies match NestJS byte for byte. |
 | P1 Platform | Done (13 Oct 2026) | Request pipeline in `ApiRoute` (throttle → auth → idempotency → handler → audit, the NestJS guard/interceptor order), JWT HS256 with the same claims and secret, device binding, HMAC API clients, pagination, outbox event bus and scheduler threads, integration monitor routes. Event-bus Jest spec ported; 21 pytest tests. |
 | P2 Utilities | Done (13 Oct 2026) | identity, configuration, audit, notification, file storage, payments, wallet, scheduling, documents (PDF layout DSL on ReportLab), import/export, approvals, tickets, reporting; the mock PayU adapter and gateway pages were pulled forward from P3. Every utility route matches NestJS (`scripts/route_parity.py`). Wallet Jest spec ported (incl. concurrent holds); 42 pytest tests. Not ported: the OTP service and customer tokens, used only by the detached customer portal (D37). |
-| P3 Adapters | Next | mock VAHAN, OEM order source and catalogue, OCR, simulator endpoints |
+| P3 Adapters | Done (13 Oct 2026) | mock VAHAN, OEM order source and catalogue, mock state, simulator endpoints; OCR with the Tesseract binary through pytesseract (greyscale + block layout reads 40/40 simulator plates; the Windows installer path is found automatically) |
+| P4 Core | Done (13 Oct 2026) | masters, pricing, inventory, order intake (order service, state machine, validation flow, OEM intake and vehicle data), booking, production with plate OCR, dispatch, rejection, fitment, postpaid billing, oversight and all reports. All 142 NestJS routes exist in FastAPI (`scripts/route_parity.py`). Pure-rule and allocation Jest specs ported; 67 pytest tests. |
+| P5 Seed and parity | Next | seed and upgrades, Dockerfile, OpenAPI contracts; then `demo:e2e` and `pnpm sim` against :3001 |
 
 ## Running the Python API (during the port)
 
@@ -104,6 +106,10 @@ Create the database once with `docker compose exec db psql -U hsrp -d postgres -
   the import-linter contracts).
 - **Lists**: `q: Page = Depends(page_query)`, then `paginate(s, stmt, q)`; other query parameters are in
   `q.get(name)` (FilteredPageQuery).
+- **Cross-module queries**: a module reads another module's records through that module's service, passing plain
+  filters (`app.platform.db.filters`, e.g. `orders.find({"status": "ISSUED", "station_id": sid})`), never its models.
+- **Uploads**: routers read multipart files and pass `app.core.shared.uploads.Photo` to the service; sync services
+  called from async routes run in the thread pool (`run_in_threadpool`).
 - **Worker**: the event bus and the scheduler run as daemon threads started in the app lifespan when
   `WORKER_ENABLED=true`; subscribers and jobs are plain functions run as the system actor.
 

@@ -9,7 +9,19 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.adapters.payment import gateway as mock_payu_gateway
+from app.adapters.simulator import router as simulator
 from app.container import container
+from app.core.billing import router as billing
+from app.core.booking import router as booking
+from app.core.dispatch import router as dispatch
+from app.core.fitment import router as fitment
+from app.core.inventory import router as inventory
+from app.core.masters import router as masters
+from app.core.order_intake import router as order_intake
+from app.core.oversight import router as oversight
+from app.core.pricing import router as pricing
+from app.core.production import router as production
+from app.core.rejection import router as rejection
 from app.platform import health
 from app.platform.http import errors
 from app.platform.http.json import ApiResponse
@@ -77,8 +89,21 @@ def create_app() -> FastAPI:
         approvals,
         tickets,
         reporting,
+        masters,
+        pricing,
+        inventory,
+        booking,
+        production,
+        dispatch,
+        rejection,
+        fitment,
+        billing,
+        oversight,
+        simulator,
     ):
         api.include_router(module.router)
+    for r in (order_intake.orders_router, order_intake.oem_router, order_intake.oem_vehicles_router):
+        api.include_router(r)
     app.include_router(api)
     # The mock gateway's pages live outside /api/v1, as in the NestJS app.
     app.include_router(mock_payu_gateway.router)

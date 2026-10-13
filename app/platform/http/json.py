@@ -1,6 +1,7 @@
 """JSON on the wire matches the NestJS API: camelCase keys, timestamps as ISO 8601 UTC with milliseconds and 'Z'."""
 
 import re
+from dataclasses import fields, is_dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
@@ -40,6 +41,11 @@ def rows(objs) -> list[dict[str, Any]]:
 def to_jsonable(v: Any) -> Any:
     if isinstance(v, DeclarativeBase):
         return to_jsonable(row(v))
+    if callable(getattr(v, "wire", None)):
+        # Port and contract dataclasses that name their fields as the external system or API does.
+        return to_jsonable(v.wire())
+    if is_dataclass(v) and not isinstance(v, type):
+        return {camel(f.name): to_jsonable(getattr(v, f.name)) for f in fields(v)}
     if isinstance(v, BaseModel):
         return to_jsonable(v.model_dump(by_alias=True))
     if isinstance(v, dict):

@@ -19,6 +19,7 @@ from app.platform.config import env
 from app.platform.context import request_context
 from app.platform.db.base import new_id, utcnow
 from app.platform.db.session import Database
+from app.platform.http.json import to_jsonable
 from app.utility.integration_hub.backoff import next_delivery_state
 from app.utility.integration_hub.models import OutboxDelivery, OutboxEvent
 
@@ -65,7 +66,8 @@ class EventBus:
             event_type=type,
             subject_type=subject_type,
             subject_id=subject_id,
-            payload=payload or {},
+            # Stored as JSON, as Prisma wrote it (dates become ISO strings).
+            payload=to_jsonable(payload or {}),
             actor_id=request_context.actor_id(),
         )
         s.add(row)

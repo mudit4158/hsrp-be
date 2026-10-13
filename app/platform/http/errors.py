@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError, NoResultFound
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.platform.http.json import to_jsonable
+from app.platform.http.json import camel, to_jsonable
 from app.platform.http.problem import Problem
 
 log = logging.getLogger("problem")
@@ -34,7 +34,8 @@ def _validation(errors: list[dict[str, Any]]) -> dict[str, Any]:
     out = []
     for e in errors:
         # FastAPI prefixes the location ("body", "query", "path"); the NestJS API reported the field path only.
-        loc = [str(p) for p in e.get("loc", ())]
+        # Field names on the wire are camelCase; query-parameter models report the Python name.
+        loc = [camel(str(p)) for p in e.get("loc", ())]
         if loc and loc[0] in ("body", "query", "path", "header"):
             loc = loc[1:]
         msg = e.get("msg", "Invalid value")
