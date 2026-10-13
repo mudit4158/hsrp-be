@@ -1,6 +1,6 @@
-# Backend stack: PostgreSQL + API (with the in-process worker). The web app runs from the hsrp-dms-fe repo
+# Backend stack: PostgreSQL + API (with the in-process worker). The web app runs from the hsrp-fe repo
 # and reaches this API on the host's port ${API_PORT:-3000}.
-name: hsrp-dms-be
+name: hsrp-be
 
 services:
   db:

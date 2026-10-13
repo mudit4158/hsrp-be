@@ -74,7 +74,7 @@ async function main() {
   const pace = Object.fromEntries(Object.entries(base).map(([k, v]) => [k, Math.round(v * o.factor)])) as typeof base;
 
   const api = new Api();
-  if (!(await api.health())) throw new Error(`API not reachable at ${CONFIG.apiUrl}: start hsrp-dms-be (docker compose up -d)`);
+  if (!(await api.health())) throw new Error(`API not reachable at ${CONFIG.apiUrl}: start hsrp-be (docker compose up -d)`);
   const needsPhone = list.some((c) => c.steps.some((s) => s.who === 'phone'));
   const phone = new Phone(pace);
   if (needsPhone) await phone.init();

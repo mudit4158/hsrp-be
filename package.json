@@ -1,5 +1,5 @@
 {
-  "name": "hsrp-dms-be",
+  "name": "hsrp-be",
   "version": "0.1.0",
   "private": true,
   "description": "HSRP Dealer Management System prototype: backend API (NestJS + Prisma + PostgreSQL)",

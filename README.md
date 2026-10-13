@@ -1,4 +1,4 @@
-# hsrp-dms-be — HSRP Dealer Management System (backend)
+# hsrp-be — HSRP Dealer Management System (backend)
 
 Backend of the HSRP Dealer Management System prototype: order intake from dealers, OEMs and customers,
 embossing-station production, dispatch, dealer inward, fitment with photos and the VAHAN post — with every external
@@ -8,9 +8,9 @@ All data is fictional. Nothing here contacts a real VAHAN, OEM, payment or SMS s
 
 | Repo | What |
 | --- | --- |
-| **hsrp-dms-be** (this) | API, database, worker, mocks, seed, acceptance script, shared contracts, decision log |
-| [hsrp-dms-fe](../hsrp-dms-fe) | Web app (staff and dealer screens) |
-| [hsrp-dms-android](../hsrp-dms-android) | Dealer Android app |
+| **hsrp-be** (this) | API, database, worker, mocks, seed, acceptance script, shared contracts, decision log |
+| [hsrp-fe](../hsrp-fe) | Web app (staff and dealer screens) |
+| [hsrp-mobile-app](../hsrp-mobile-app) | Dealer Android app |
 
 The three repos live side by side under `C:\workspace\hsrp\` (decision D38). Design background:
 [High-Level Design](https://claude.ai/code/artifact/d7fce61b-0fe9-4bae-a8b2-7286684b9de4) ·
@@ -40,10 +40,10 @@ docker compose up --build -d
 This starts PostgreSQL and the API, applies migrations and seeds the demo data. API: http://localhost:3000/api/v1 ·
 OpenAPI: http://localhost:3000/api/docs · PostgreSQL: localhost:5433.
 
-**Web app**: in `../hsrp-dms-fe` run `docker compose up --build -d`, then open http://localhost:8080
+**Web app**: in `../hsrp-fe` run `docker compose up --build -d`, then open http://localhost:8080
 (see that repo's README).
 
-**Android app**: build and install from `../hsrp-dms-android` (see that repo's README). The emulator reaches this API at
+**Android app**: build and install from `../hsrp-mobile-app` (see that repo's README). The emulator reaches this API at
 `http://10.0.2.2:3000`.
 
 **Demo sign-ins** (password = `SEED_PASSWORD` from `.env`):

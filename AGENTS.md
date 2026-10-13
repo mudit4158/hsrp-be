@@ -1,4 +1,4 @@
-# AGENTS.md — hsrp-dms-be
+# AGENTS.md — hsrp-be
 
 **Last updated:** 12 Oct 2026
 
@@ -16,8 +16,8 @@ Sibling repos (checked out next to this one under `C:\workspace\hsrp\`):
 
 | Repo | What | Talks to this repo through |
 | --- | --- | --- |
-| `hsrp-dms-fe` | Web app (staff and dealer screens; customer portal code detached) | REST `/api/v1`, mock gateway `/mock-gateway` |
-| `hsrp-dms-android` | Dealer Android app | REST `/api/v1` |
+| `hsrp-fe` | Web app (staff and dealer screens; customer portal code detached) | REST `/api/v1`, mock gateway `/mock-gateway` |
+| `hsrp-mobile-app` | Dealer Android app | REST `/api/v1` |
 
 Design background: the [High-Level Design](https://claude.ai/code/artifact/d7fce61b-0fe9-4bae-a8b2-7286684b9de4)
 (a Claude Doc). Its "Prototype defaults and decision log" table is mirrored in `docs/DECISIONS.md`; when they
@@ -105,8 +105,8 @@ in `.env`. **Never print, log or commit `SEED_PASSWORD` or other secrets.**
 - Schema change → new migration folder in `prisma/schema/migrations/` (generate SQL with `pnpm db:sql` or
   `prisma migrate diff`); custom SQL (partial indexes, triggers) goes in a migration too. The hook blocks a schema
   change without a migration.
-- Contract change (`packages/contracts`) → also run `pnpm contracts:sync` in `hsrp-dms-fe` and commit there; update
-  the Kotlin models in `hsrp-dms-android` (`app/.../data/Api.kt`) if the Android app uses the changed endpoint.
+- Contract change (`packages/contracts`) → also run `pnpm contracts:sync` in `hsrp-fe` and commit there; update
+  the Kotlin models in `hsrp-mobile-app` (`app/.../data/Api.kt`) if the Android app uses the changed endpoint.
 - Seed and fixtures: fictional and obviously fake only. No real people, phone numbers or vehicles.
 - Seed upgrades: the seed only runs fully on an empty database. Additive changes for existing databases go in
   `upgrade()` in `src/seed/run.ts`, guarded by their own marker (e.g. the import profile they add).
@@ -133,7 +133,7 @@ same commit**. Use the **maintain-docs** skill (`.claude/skills/maintain-docs/SK
 | Structure, conventions, rules, gotchas | this file |
 | A design choice not covered by an existing decision | `docs/DECISIONS.md` (next Dnn) **and** the HLD decision log (append-only) |
 | Fixed, found or deferred work | `docs/TRACKER.md` (or the FE / Android tracker if only that repo is involved) |
-| API contracts | FE copy via `pnpm contracts:sync` (in hsrp-dms-fe); Android models if affected |
+| API contracts | FE copy via `pnpm contracts:sync` (in hsrp-fe); Android models if affected |
 | A flow in the click-through | `README.md` section "Click-through" and `scripts/demo-e2e.ts` |
 
 `pnpm docs:check` (and the pre-commit hook) enforces the mechanical part: required files, review dates, unique tracker

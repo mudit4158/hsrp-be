@@ -11,7 +11,7 @@ in `sim/`) runs them on screen:
 - **What you see:** a visible cursor, a ripple on each click and a caption for each step.
 
 Prerequisites:
-- the backend and web app are running (`docker compose up -d` in hsrp-dms-be and hsrp-dms-fe);
+- the backend and web app are running (`docker compose up -d` in hsrp-be and hsrp-fe);
 - the Android emulator is running with the **debug** dealer app installed (`./gradlew assembleDebug`, then
   `adb install -r`);
 - Google Chrome is installed (`SIM_BROWSER=msedge` uses Edge instead).
@@ -59,7 +59,7 @@ Each run writes `sim/output/<run>/report.md`, plus web and phone screenshots of 
 | Dealer (web) | Chrome window "Dealer WB01" | `dealer.wb01` |
 | Dealer (app) | Android emulator, debug dealer app | `dealer.wb01` |
 
-All passwords are `SEED_PASSWORD` from `hsrp-dms-be/.env`; the simulator reads it and never prints it.
+All passwords are `SEED_PASSWORD` from `hsrp-be/.env`; the simulator reads it and never prints it.
 
 ## D-00 Prepare test data (runs at the start of every run)
 

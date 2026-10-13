@@ -1,6 +1,6 @@
 ---
 name: maintain-docs
-description: Keeps an HSRP DMS repo (hsrp-dms-be, hsrp-dms-fe or hsrp-dms-android) documented and consistent. Use after ANY change to code, schema, config, scripts, API, screens or setup, before every commit, when picking up or finishing a tracker item, when a design choice is made, and when the user asks to update docs, the tracker or the decision log. Updates README.md, AGENTS.md, docs/TRACKER.md, docs/DECISIONS.md and the HLD decision log, keeps the shared contracts in step across repos, and runs the checks.
+description: Keeps an HSRP DMS repo (hsrp-be, hsrp-fe or hsrp-mobile-app) documented and consistent. Use after ANY change to code, schema, config, scripts, API, screens or setup, before every commit, when picking up or finishing a tracker item, when a design choice is made, and when the user asks to update docs, the tracker or the decision log. Updates README.md, AGENTS.md, docs/TRACKER.md, docs/DECISIONS.md and the HLD decision log, keeps the shared contracts in step across repos, and runs the checks.
 ---
 
 # maintain-docs
@@ -9,9 +9,9 @@ The three HSRP DMS repos sit side by side under `C:\workspace\hsrp\`:
 
 | Repo | Owns |
 | --- | --- |
-| `hsrp-dms-be` | API, database, seed, `demo:e2e`, **contracts** (`packages/contracts`), **decision log** (`docs/DECISIONS.md`), system tracker |
-| `hsrp-dms-fe` | Web app, its tracker, a synced copy of the contracts (`src/contracts`) |
-| `hsrp-dms-android` | Dealer app, its tracker, Kotlin API models (`app/src/main/java/com/hsrp/dealer/data/Api.kt`) |
+| `hsrp-be` | API, database, seed, `demo:e2e`, **contracts** (`packages/contracts`), **decision log** (`docs/DECISIONS.md`), system tracker |
+| `hsrp-fe` | Web app, its tracker, a synced copy of the contracts (`src/contracts`) |
+| `hsrp-mobile-app` | Dealer app, its tracker, Kotlin API models (`app/src/main/java/com/hsrp/dealer/data/Api.kt`) |
 
 Documentation is part of the change. Do this routine **before committing**, in the repo you changed (and in the
 sibling repos when the change crosses repos).
@@ -49,7 +49,7 @@ Tracker rules (`docs/TRACKER.md`):
 
 ## 3. Record decisions (backend owns the log)
 
-1. Read `hsrp-dms-be/docs/DECISIONS.md`; take the next number (`D42`, …).
+1. Read `hsrp-be/docs/DECISIONS.md`; take the next number (`D42`, …).
 2. Append a row: `| Dnn | Open point | Decision | Claude Code, <d Mon yyyy> |` (add "(user request)" when the user
    decided). Never edit or renumber existing rows.
 3. Append the same row to the HLD table "Prototype defaults and decision log" in the Claude Doc
@@ -60,9 +60,9 @@ Tracker rules (`docs/TRACKER.md`):
 
 ## 4. Keep the repos in step
 
-- **Contracts** changed in `hsrp-dms-be/packages/contracts`:
-  `cd ../hsrp-dms-fe && pnpm contracts:sync && pnpm typecheck`, then commit there
-  ("Sync contracts from hsrp-dms-be <short hash>"). If the Android app calls the changed endpoint, update the Kotlin
+- **Contracts** changed in `hsrp-be/packages/contracts`:
+  `cd ../hsrp-fe && pnpm contracts:sync && pnpm typecheck`, then commit there
+  ("Sync contracts from hsrp-be <short hash>"). If the Android app calls the changed endpoint, update the Kotlin
   data classes in `Api.kt` and rebuild (`./gradlew assembleDebug`).
 - **This skill or `scripts/docs-check.mjs`** changed: copy the file to the other two repos and commit there too.
 - **API URL, ports or auth** changed: check the FE (`vite.config.ts`, `nginx.conf.template`, `.env.example`) and the
@@ -72,9 +72,9 @@ Tracker rules (`docs/TRACKER.md`):
 
 | Repo | Run |
 | --- | --- |
-| hsrp-dms-be | `pnpm docs:check`, `pnpm lint:deps`, `pnpm test` (start `docker compose up -d db` first); if behaviour changed and the API is running: `pnpm demo:e2e` |
-| hsrp-dms-fe | `pnpm docs:check` (includes the contracts drift check), `pnpm build` |
-| hsrp-dms-android | `node scripts/docs-check.mjs`, `./gradlew assembleDebug` |
+| hsrp-be | `pnpm docs:check`, `pnpm lint:deps`, `pnpm test` (start `docker compose up -d db` first); if behaviour changed and the API is running: `pnpm demo:e2e` |
+| hsrp-fe | `pnpm docs:check` (includes the contracts drift check), `pnpm build` |
+| hsrp-mobile-app | `node scripts/docs-check.mjs`, `./gradlew assembleDebug` |
 
 Report failures honestly; do not bypass the pre-commit hook (`--no-verify`) unless the user asks.
 

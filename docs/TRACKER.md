@@ -3,8 +3,8 @@
 **Last reviewed:** 12 Oct 2026
 
 This tracker holds backend items, items that span repos, business questions and hardening. Items that touch only
-one other repo live in that repo's tracker: [hsrp-dms-fe/docs/TRACKER.md](../../hsrp-dms-fe/docs/TRACKER.md) and
-[hsrp-dms-android/docs/TRACKER.md](../../hsrp-dms-android/docs/TRACKER.md) (sibling folders under `C:\workspace\hsrp`).
+one other repo live in that repo's tracker: [hsrp-fe/docs/TRACKER.md](../../hsrp-fe/docs/TRACKER.md) and
+[hsrp-mobile-app/docs/TRACKER.md](../../hsrp-mobile-app/docs/TRACKER.md) (sibling folders under `C:\workspace\hsrp`).
 Each item lives in exactly one tracker. Decisions (Dnn) are in [DECISIONS.md](DECISIONS.md).
 
 Update rows when an item moves; finished items go to **Done** with the commit. The maintain-docs skill describes the
@@ -12,7 +12,7 @@ routine and `pnpm docs:check` validates the format.
 
 **Status:** Open · In progress · Blocked (waiting on someone outside the build) · Done
 **Priority:** P1 breaks or blocks a demo flow · P2 needed before real use · P3 nice to have
-**Repos:** BE = hsrp-dms-be · FE = hsrp-dms-fe · AND = hsrp-dms-android
+**Repos:** BE = hsrp-be · FE = hsrp-fe · AND = hsrp-mobile-app
 
 ## Fixes
 
@@ -68,6 +68,7 @@ capture time. Business questions: B-05, B-06.
 | N-04 | Worker as its own process | BE | P3 | Open | Outbox and scheduled jobs run inside the API (`WORKER_ENABLED=true`). Splitting needs a second entry point that boots the same module with HTTP off. |
 | N-05 | Final print layouts | BE | P3 | Blocked | Job card, challan, sticker and receipt are simple PDFs (D16). Needs the official layouts. |
 | N-10 | Prepaid dealer credit control (OEM × dealer) | BE, FE | P2 | Open | Designed, not built (user request): OEM allocates or withdraws credits per dealer, freezes a dealer, sets a per-order maximum, a monthly cap and allowed vehicle classes, and chooses the funding source (OEM credits only, the dealer's own only, or OEM first then own); dealers may add own credits and ask the OEM for more (approvals). Clickable prototype: [Dealer Credit Control](https://claude.ai/artifact/TgJ55GGG54MrP2qT8BskTW). Plan in the prototype's "How it would fit" section. |
+| N-12 | Backend port to Python (FastAPI) | BE, FE | P1 | In progress | Same API and schema, NestJS kept until parity (D48). Plan, phases and gates: [docs/FASTAPI-PORT.md](FASTAPI-PORT.md). Now: P0 scaffold. |
 | N-11 | Billing follow-ups | BE, FE | P2 | Open | Postpaid billing (D46) has no tax invoice (GST), payment collection or reminders (bills are marked paid by hand), dealer/OEM view of their own bills, credit limit for postpaid parties, or credit notes for re-issues and cancellations after billing. |
 | N-09 | OCR accuracy on real photos | BE | P2 | Open | The tesseract adapter (D45) reads generated test plates reliably; real camera photos (angle, glare, dirt, IND hologram) need tuning (crop to the plate, deskew, contrast) or a dedicated ANPR engine behind the same `PlateReader` port. Measure on sample photos before real use; a strict exact-match rule will refuse misreads. |
 | N-08 | OEM vehicle data for every OEM | BE | P2 | Open | The `oem-vehicle-data` step (D42) runs only for Kranti orders (setting `order.validationSteps`, scope oem KRANTI). New-vehicle orders without an OEM or for Zenmo are not checked. Decide per OEM (file vs. API catalogue) and whether a NEW order must name its OEM. |
@@ -84,7 +85,7 @@ capture time. Business questions: B-05, B-06.
 | ID | Item | Repos | Priority | Status | Notes |
 | --- | --- | --- | --- | --- | --- |
 | R-01 | Old monorepo folder | — | P3 | Open | `C:\workspace\hsrp-dms` (the pre-split monorepo) stays as a read-only archive; it could not be renamed during the split because another process held the folder. Rename it (e.g. `hsrp-dms-monorepo`) or remove it once nothing uses it. |
-| R-02 | Old Docker volume | — | P3 | Open | The pre-split stack's database volume `hsrp-dms_dbdata` is no longer used (the backend now uses `hsrp-dms-be_dbdata`). Remove it with `docker volume rm hsrp-dms_dbdata` when its demo data is not needed. |
+| R-02 | Old Docker volumes | — | P3 | Open | Two database volumes are no longer used: `hsrp-dms_dbdata` (pre-split monorepo) and `hsrp-dms-be_dbdata` (before the rename to hsrp-be, D48). The backend now uses `hsrp-be_dbdata`. Remove them with `docker volume rm hsrp-dms_dbdata hsrp-dms-be_dbdata` when their demo data is not needed. |
 | R-03 | Shared checker kept in step | BE, FE, AND | P3 | Open | `scripts/docs-check.mjs` and the maintain-docs skill are copied in all three repos. When one changes, copy it to the others (the skill says so). Consider a tiny shared package later. |
 
 ## Open decisions (waiting on the business)
@@ -119,7 +120,7 @@ capture time. Business questions: B-05, B-06.
 | — | Audit reports: order history, order validation results, OEM history, laser code audit (D43) | same commit |
 | — | On-screen simulator `pnpm sim` with 10 end-to-end cases (D44, docs/SIMULATION.md) | same commit |
 | — | Issuance box suggestions left out needed plate sizes (only the first 8 boxes were shown); now up to 3 per needed size | FE commit of the same day |
-| N-07 | Repositories separated into hsrp-dms-be, hsrp-dms-fe, hsrp-dms-android (D38–D41) | see each repo's "Split from the monorepo" commit |
+| N-07 | Repositories separated into hsrp-be, hsrp-fe, hsrp-mobile-app (D38–D41) | see each repo's "Split from the monorepo" commit |
 | — | Outbox dispatcher compared due times with the database clock (a few ms of Docker clock lag left replayed deliveries waiting); now uses the Node clock it writes with | backend split commit |
 | — | Customer portal detached (D37) | monorepo `b9b39fa` |
 | — | Flaky DB tests: Jest timeout raised to 30 s | monorepo `b9b39fa` |

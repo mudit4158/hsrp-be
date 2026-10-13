@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Documentation and consistency checks for the HSRP DMS repos (hsrp-dms-be, hsrp-dms-fe, hsrp-dms-android).
+ * Documentation and consistency checks for the HSRP DMS repos (hsrp-be, hsrp-fe, hsrp-mobile-app).
  * The same file lives in each repo; it detects which repo it is running in.
  *
  *   node scripts/docs-check.mjs            check the working tree
@@ -21,7 +21,7 @@ const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 const exists = (rel) => fs.existsSync(path.join(root, rel));
 
 const pkg = exists('package.json') ? JSON.parse(read('package.json')) : null;
-const repo = pkg?.name === 'hsrp-dms-be' ? 'be' : pkg?.name === 'hsrp-dms-fe' ? 'fe' : exists('settings.gradle.kts') ? 'android' : 'unknown';
+const repo = pkg?.name === 'hsrp-be' ? 'be' : pkg?.name === 'hsrp-fe' ? 'fe' : exists('settings.gradle.kts') ? 'android' : 'unknown';
 if (repo === 'unknown') {
   console.error('[docs-check] Cannot tell which HSRP repo this is.');
   process.exit(1);

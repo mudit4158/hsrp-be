@@ -29,7 +29,7 @@ export function seedPassword(): string {
     const line = readFileSync(envFile, 'utf8').split(/\r?\n/).find((l) => l.startsWith('SEED_PASSWORD='));
     if (line) return line.slice('SEED_PASSWORD='.length).trim();
   }
-  throw new Error('SEED_PASSWORD not found: set it in hsrp-dms-be/.env or the environment');
+  throw new Error('SEED_PASSWORD not found: set it in hsrp-be/.env or the environment');
 }
 
 /** Pace presets. Times in ms. `read` is how long a result stays on screen before the run moves on. */
