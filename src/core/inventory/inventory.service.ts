@@ -115,6 +115,27 @@ export class InventoryService implements OnModuleInit {
     return this.prisma.plateAllocation.findMany({ where: { orderId }, orderBy: { createdAt: 'asc' } });
   }
 
+  /** Allocations (laser code ↔ order), newest first, for the laser code audit. */
+  allocations(filter: { from?: Date; to?: Date; laserCode?: string; orderIds?: string[] }) {
+    return this.prisma.plateAllocation.findMany({
+      where: {
+        tenantId: requestContext.tenantId(),
+        ...(filter.laserCode ? { laserCode: { contains: filter.laserCode.toUpperCase() } } : {}),
+        ...(filter.orderIds ? { orderId: { in: filter.orderIds } } : {}),
+        ...(filter.from || filter.to ? { createdAt: { gte: filter.from, lte: filter.to } } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20_000,
+    });
+  }
+
+  /** Plates with their box number, by laser code. */
+  async platesByCodes(laserCodes: string[]) {
+    const plates = await this.prisma.plate.findMany({ where: { tenantId: requestContext.tenantId(), laserCode: { in: laserCodes } } });
+    const boxes = await this.prisma.plateBox.findMany({ where: { id: { in: [...new Set(plates.map((p) => p.boxId))] } }, select: { id: true, boxNo: true } });
+    return plates.map((p) => ({ ...p, boxNo: boxes.find((b) => b.id === p.boxId)?.boxNo }));
+  }
+
   allocationsByIds(ids: string[], db: Db = this.prisma) {
     return db.plateAllocation.findMany({ where: { id: { in: ids } } });
   }

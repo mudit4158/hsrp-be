@@ -1,6 +1,7 @@
 import { Global, Module, Provider } from '@nestjs/common';
 import { env } from '../platform/config/env';
 import { OEM_VEHICLE_CATALOG, ORDER_SOURCE } from '../core/ports/oem.port';
+import { PLATE_READER } from '../core/ports/plate-reader.port';
 import { VEHICLE_REGISTRY } from '../core/ports/vehicle-registry.port';
 import { FILE_STORE } from '../utility/file-storage/file-store.port';
 import { MESSAGE_SENDER } from '../utility/notification/message-sender.port';
@@ -8,6 +9,7 @@ import { PAYMENT_PROVIDER } from '../utility/payments/payment-provider.port';
 import { DbFileStore } from './file-store/db-file-store.adapter';
 import { MockMessageSender, RealMessageSender } from './messaging/mock-message-sender.adapter';
 import { MockStateService } from './mock-state.service';
+import { MockPlateReader, TesseractPlateReader } from './ocr/plate-reader.adapters';
 import { MockOemCatalog, MockOrderSource, RealOemCatalog, RealOrderSource } from './oem/mock-oem.adapter';
 import { MockPayuGatewayController } from './payment/mock-payu-gateway.controller';
 import { MockPayuAdapter } from './payment/mock-payu.adapter';
@@ -25,6 +27,13 @@ function bind(envName: string, value: string, token: symbol, mock: Ctor, real: C
   throw new Error(`${envName} must be "mock" or "real", got "${value}"`);
 }
 
+/** Plate OCR has two working adapters (D45): real local OCR (tesseract) and the mock used by unit tests. */
+function ocrProvider(value: string): Provider {
+  if (value === 'tesseract') return { provide: PLATE_READER, useClass: TesseractPlateReader };
+  if (value === 'mock') return { provide: PLATE_READER, useClass: MockPlateReader };
+  throw new Error(`OCR_ADAPTER must be "tesseract" or "mock", got "${value}"`);
+}
+
 /** Binds every port to its implementation, chosen by environment variable (e.g. VAHAN_ADAPTER=mock). */
 @Global()
 @Module({
@@ -37,7 +46,8 @@ function bind(envName: string, value: string, token: symbol, mock: Ctor, real: C
     bind('OEM_ADAPTER', env.adapters.oem, ORDER_SOURCE, MockOrderSource, RealOrderSource),
     bind('OEM_ADAPTER', env.adapters.oem, OEM_VEHICLE_CATALOG, MockOemCatalog, RealOemCatalog),
     bind('FILE_STORE_ADAPTER', env.adapters.fileStore, FILE_STORE, DbFileStore, DbFileStore),
+    ocrProvider(env.adapters.ocr),
   ],
-  exports: [VEHICLE_REGISTRY, PAYMENT_PROVIDER, MESSAGE_SENDER, ORDER_SOURCE, OEM_VEHICLE_CATALOG, FILE_STORE, MockStateService],
+  exports: [VEHICLE_REGISTRY, PAYMENT_PROVIDER, MESSAGE_SENDER, ORDER_SOURCE, OEM_VEHICLE_CATALOG, FILE_STORE, PLATE_READER, MockStateService],
 })
 export class AdaptersModule {}

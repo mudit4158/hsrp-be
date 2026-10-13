@@ -76,6 +76,18 @@ export const OemOrderRequest = z.object({
 });
 export type OemOrderRequest = z.infer<typeof OemOrderRequest>;
 
+/** One row of an OEM vehicle data file (vehicles built and supplied to a dealer). */
+export const OemVehicleRecord = z.object({
+  chassisNo: z.string().trim().toUpperCase().min(5).max(30),
+  engineNo: z.string().trim().toUpperCase().min(5).max(30),
+  model: z.string().trim().min(1).max(80),
+  vahanCategory: z.string().trim().toUpperCase().max(5).optional(),
+  dealerCode: z.string().trim().toUpperCase().min(1),
+  invoiceNo: z.string().trim().max(40).optional(),
+  invoiceDate: z.string().trim().max(10).optional(),
+});
+export type OemVehicleRecord = z.infer<typeof OemVehicleRecord>;
+
 export const CancelOrderRequest = z.object({ reason: z.string().min(3).max(300) });
 
 export const OrderListQuery = PaginationQuery.extend({

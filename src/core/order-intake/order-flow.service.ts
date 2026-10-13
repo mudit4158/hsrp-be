@@ -17,8 +17,9 @@ import { VahanLookupReply, VEHICLE_REGISTRY, VehicleRegistry } from '../ports/ve
 import { PricingService } from '../pricing/pricing.module';
 import { APPROVAL, SUBJECT } from '../shared/subjects';
 import { routeAfterApproval, routeAfterValidation } from './order-state-machine';
+import { OemVehicleDataService } from './oem-vehicle-data.service';
 import { OrderService } from './order.service';
-import { judgeStateRules, judgeVahanReply, StateRules, StepResult } from './validation-steps';
+import { judgeOemVehicle, judgeStateRules, judgeVahanReply, StateRules, StepResult } from './validation-steps';
 
 const DEFAULT_STEPS = ['vahan-check', 'state-eligibility-rules'];
 
@@ -42,6 +43,7 @@ export class OrderFlowService implements OnModuleInit {
     private readonly notify: NotificationService,
     private readonly calls: CallLogService,
     private readonly bus: EventBus,
+    private readonly oemData: OemVehicleDataService,
     @Inject(VEHICLE_REGISTRY) private readonly vahan: VehicleRegistry,
     @Inject(OEM_VEHICLE_CATALOG) private readonly catalog: OemVehicleCatalog,
     @Inject(ORDER_SOURCE) private readonly orderSource: OrderSource,
@@ -84,6 +86,9 @@ export class OrderFlowService implements OnModuleInit {
           );
           res = hit.found ? { ok: true, message: `Catalogue model ${hit.model}` } : { ok: false, reason: `Chassis ${order.chassisNo} is not in ${oem.name}'s catalogue` };
         }
+      } else if (step === 'oem-vehicle-data') {
+        const record = order.orderType === 'NEW' ? await this.oemData.facts(order.chassisNo, order.oemId) : null;
+        res = judgeOemVehicle(order, record, { oemName: oem?.name, orderDealerCode: dealer?.code });
       } else if (step === 'vahan-check') {
         const req = { regnNO: order.regnNo, chasisNo: order.chassisNo.slice(-5), engineNo: order.engineNo.slice(-5), userId: await this.settings.getOr('vahan.userId', 'HSRPDEMO') };
         // RegistryUnavailableError propagates: the outbox retries this delivery with back-off.
@@ -152,7 +157,9 @@ export class OrderFlowService implements OnModuleInit {
   /** After VALIDATED: approval, payment or wallet. */
   private async route(tx: Tx, order: Order) {
     const next = routeAfterValidation(order);
-    if (order.channel !== 'CUSTOMER_PORTAL') {
+    // Postpaid OEMs (D46) are billed per cycle by the billing module: no wallet hold.
+    const postpaid = await this.isPostpaid(order);
+    if (order.channel !== 'CUSTOMER_PORTAL' && !postpaid) {
       const held = await this.holdWallet(tx, order);
       if (!held) return; // stays VALIDATED until the wallet has funds; retried by a scheduled job
     }
@@ -172,8 +179,15 @@ export class OrderFlowService implements OnModuleInit {
     } else if (next === 'AWAITING_PAYMENT') {
       await this.awaitPayment(tx, order);
     } else {
-      await this.confirm(tx, order.id, 'wallet-captured');
+      await this.confirm(tx, order.id, postpaid ? 'postpaid' : 'wallet-captured');
     }
+  }
+
+  /** The OEM's payment mode (setting billing.paymentMode, scope oem); orders without an OEM are prepaid. */
+  private async isPostpaid(order: Order) {
+    if (!order.oemId || order.channel === 'CUSTOMER_PORTAL') return false;
+    const oem = await this.masters.oem(order.oemId);
+    return Boolean(oem) && (await this.settings.getOr<string>('billing.paymentMode', 'PREPAID', [{ type: 'oem', id: oem!.code }])) === 'POSTPAID';
   }
 
   private async awaitPayment(tx: Tx, order: Order) {

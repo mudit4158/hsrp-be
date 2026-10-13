@@ -1,0 +1,73 @@
+// owner: src/core/billing
+
+/// A postpaid order's charge (D46). PENDING from confirmation, BILLABLE once its plates are dispatched, BILLED when a
+/// bill takes it, VOID when the order is cancelled or rejected before that. Bill-to is fixed at confirmation.
+model BillingCharge {
+  id           String    @id @default(uuid())
+  tenantId     String    @map("tenant_id")
+  orderId      String    @unique @map("order_id")
+  orderNo      String    @map("order_no")
+  regnNo       String    @map("regn_no")
+  oemId        String    @map("oem_id")
+  dealerId     String?   @map("dealer_id")
+  billToType   String    @map("bill_to_type")
+  billToId     String    @map("bill_to_id")
+  billToName   String    @map("bill_to_name")
+  amountPaise  Int       @map("amount_paise")
+  status       String    @default("PENDING")
+  confirmedAt  DateTime  @map("confirmed_at")
+  dispatchedAt DateTime? @map("dispatched_at")
+  billId       String?   @map("bill_id")
+  voidReason   String?   @map("void_reason")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([tenantId, status])
+  @@index([billId])
+  @@map("core_bil_charge")
+}
+
+/// One bill to one party (an OEM or a dealer) for one OEM's postpaid orders dispatched in a billing period.
+model Bill {
+  id          String    @id @default(uuid())
+  tenantId    String    @map("tenant_id")
+  billNo      String    @map("bill_no")
+  oemId       String    @map("oem_id")
+  billToType  String    @map("bill_to_type")
+  billToId    String    @map("bill_to_id")
+  billToName  String    @map("bill_to_name")
+  cycle       String
+  periodFrom  DateTime  @map("period_from")
+  periodTo    DateTime  @map("period_to")
+  amountPaise Int       @map("amount_paise")
+  lineCount   Int       @map("line_count")
+  status      String    @default("ISSUED")
+  fileId      String?   @map("file_id")
+  sentTo      String?   @map("sent_to")
+  sentAt      DateTime? @map("sent_at")
+  paidAt      DateTime? @map("paid_at")
+  createdBy   String?   @map("created_by")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@unique([tenantId, billNo])
+  @@index([tenantId, oemId])
+  @@map("core_bil_bill")
+}
+
+/// One billing run for one OEM (scheduled cycle close or "Run billing now"); periodTo makes scheduled runs idempotent.
+model BillingRun {
+  id         String   @id @default(uuid())
+  tenantId   String   @map("tenant_id")
+  oemId      String   @map("oem_id")
+  cycle      String
+  trigger    String
+  periodFrom DateTime @map("period_from")
+  periodTo   DateTime @map("period_to")
+  billCount  Int      @map("bill_count")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, oemId, periodTo])
+  @@map("core_bil_run")
+}

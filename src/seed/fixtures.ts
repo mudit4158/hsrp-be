@@ -13,6 +13,7 @@ export const ROLES: Array<{ code: string; name: string; permissions: string[] }>
       'orders.read', 'orders.create', 'orders.cancel', 'approvals.read', 'approvals.decide', 'masters.read', 'masters.manage', 'pricing.manage',
       'inventory.read', 'station.read', 'wallet.read', 'wallet.manage', 'tickets.manage', 'reports.read', 'audit.read', 'integration.monitor',
       'integration.replay', 'imports.run', 'files.upload', 'files.read', 'payments.read', 'notifications.read', 'config.read', 'scheduling.manage',
+      'billing.read', 'billing.manage',
     ],
   },
   {
@@ -89,11 +90,30 @@ export const PLATE_SET_FACTOR: Record<string, number> = { BOTH: 1, FRONT: 0.55, 
 /** Odisha publishes slightly different prices (separate rule pack). */
 export const STATE_FACTOR: Record<string, number> = { WB: 1, OD: 1.05 };
 
+/** Kranti new-vehicle orders are checked against Kranti's vehicle data file before VAHAN (D42). */
+export const KRANTI_STEPS = ['oem-vehicle-data', 'vahan-check', 'state-eligibility-rules'];
+
+/**
+ * Billing (D46): Zenmo is postpaid, billed monthly to Zenmo except dealer WB02, which is billed directly; Kranti stays
+ * prepaid (wallets). Contacts are fictional.
+ */
+export const BILLING_SETTINGS = [
+  { key: 'billing.paymentMode', scopeType: 'oem', scopeId: 'ZENMO', value: 'POSTPAID' },
+  { key: 'billing.cycle', scopeType: 'oem', scopeId: 'ZENMO', value: 'MONTHLY' },
+  { key: 'billing.billTo', scopeType: 'oem', scopeId: 'ZENMO', value: 'OEM' },
+  { key: 'billing.billTo', scopeType: 'oem-dealer', scopeId: 'ZENMO:WB02', value: 'DEALER' },
+  { key: 'billing.contactEmail', scopeType: 'oem', scopeId: 'ZENMO', value: 'accounts@zenmo-motors.example.invalid' },
+  { key: 'billing.paymentMode', scopeType: 'oem', scopeId: 'KRANTI', value: 'PREPAID' },
+  { key: 'billing.cycle', scopeType: 'oem', scopeId: 'KRANTI', value: 'WEEKLY' },
+  { key: 'billing.contactEmail', scopeType: 'oem', scopeId: 'KRANTI', value: 'accounts@kranti-autos.example.invalid' },
+];
+
 export const SETTINGS: Array<{ key: string; scopeType: string; scopeId: string; value: unknown }> = [
   { key: 'order.newVehicleCutoff', scopeType: 'global', scopeId: '*', value: '2019-04-01' },
   { key: 'order.validationSteps', scopeType: 'global', scopeId: '*', value: ['vahan-check', 'state-eligibility-rules'] },
   { key: 'order.validationSteps', scopeType: 'oem', scopeId: 'ZENMO', value: ['oem-catalogue-check', 'vahan-check', 'state-eligibility-rules'] },
-  { key: 'order.validationSteps', scopeType: 'oem', scopeId: 'KRANTI', value: ['vahan-check', 'state-eligibility-rules'] },
+  { key: 'order.validationSteps', scopeType: 'oem', scopeId: 'KRANTI', value: KRANTI_STEPS },
+  ...BILLING_SETTINGS,
   { key: 'state.rules', scopeType: 'state', scopeId: 'WB', value: { smsStatusUpdates: false, requireMobile: false, publishedPrices: false } },
   {
     key: 'state.rules',
@@ -116,10 +136,21 @@ export const SEQUENCES = [
   { name: 'job-card', prefix: 'JC{YY}{MM}-', padding: 5 },
   { name: 'challan', prefix: 'DC{YY}{MM}-', padding: 5 },
   { name: 'ticket', prefix: 'CMP{YY}{MM}-', padding: 5 },
+  { name: 'bill', prefix: 'BL{YY}{MM}-', padding: 5 },
 ];
 
 const DLT = (n: number) => `1107${String(160000000000000 + n)}`;
+export const BILL_EMAIL = {
+  code: 'BILL_ISSUED',
+  channel: 'EMAIL',
+  senderId: 'billing@hsrp-demo.invalid',
+  dltTemplateId: null,
+  subject: 'HSRP bill {{billNo}} for {{period}}',
+  body: 'Bill {{billNo}} to {{billTo}} for {{oem}} plates dispatched {{period}}: {{count}} orders, ₹{{amount}}. View and download it at {{link}}',
+};
+
 export const NOTIFY_TEMPLATES = [
+  BILL_EMAIL,
   { code: 'OTP', channel: 'SMS', senderId: 'HSRPDM', dltTemplateId: DLT(1), body: '{{otp}} is your HSRP verification code. It is valid for {{minutes}} minutes. Do not share it. -HSRP Demo' },
   { code: 'ORDER_CONFIRMED', channel: 'SMS', senderId: 'HSRPDM', dltTemplateId: DLT(2), body: 'Your HSRP order {{orderNo}} for {{regnNo}} is confirmed. -HSRP Demo' },
   { code: 'ORDER_STATUS', channel: 'SMS', senderId: 'HSRPDM', dltTemplateId: DLT(3), body: 'HSRP order {{orderNo}} for {{regnNo}} is now {{status}}. -HSRP Demo' },
@@ -154,6 +185,55 @@ export const TICKET_CATEGORIES = [
   { code: 'OTHER', name: 'Other', slaDays: 15 },
 ];
 
+/** Model names for seeded and simulated Kranti vehicles, by VAHAN category. */
+export const KRANTI_MODELS: Record<string, string> = { '2WN': 'Kranti Sprint 110 (fictional)', LMV: 'Kranti Vista (fictional)' };
+export const krantiModel = (vchCatg: string) => KRANTI_MODELS[vchCatg] ?? 'Kranti Cargo (fictional)';
+
+/**
+ * Standard OEM templates (D47): one layout for every OEM, uploaded from the admin portal (OEM files & uploads →
+ * Bulk upload OEM data). The OEM is chosen at upload (requiredContext oemCode), so a new OEM needs no new profile.
+ */
+export const STANDARD_OEM_PROFILES = [
+  {
+    code: 'OEM_VEHICLES_STANDARD',
+    name: 'OEM vehicle data (standard template)',
+    sourceName: 'Any OEM (bulk upload)',
+    targetType: 'hsrp.oem-vehicle',
+    mapping: {
+      requiredContext: ['oemCode'],
+      columnOrder: ['chassisNo', 'engineNo', 'model', 'vahanCategory', 'dealerCode', 'invoiceNo', 'invoiceDate'],
+      columns: {
+        chassisNo: { from: 'Chassis No', required: true, transform: 'upper', example: 'MA1ABCDEFGH123456' },
+        engineNo: { from: 'Engine No', required: true, transform: 'upper', example: 'EAB1234567' },
+        model: { from: 'Model', required: true, example: 'Demo Model (fictional)' },
+        vahanCategory: { from: 'Category', transform: 'upper', example: 'LMV' },
+        dealerCode: { from: 'Dealer Code', required: true, transform: 'upper', example: 'WB01' },
+        invoiceNo: { from: 'Invoice No', example: 'INV-0001' },
+        invoiceDate: { from: 'Invoice Date', example: '01-10-2026' },
+      },
+    },
+  },
+  {
+    code: 'OEM_ORDERS_STANDARD',
+    name: 'OEM orders (standard template)',
+    sourceName: 'Any OEM (bulk upload)',
+    targetType: 'hsrp.oem-order',
+    mapping: {
+      requiredContext: ['oemCode'],
+      columnOrder: ['oemOrderRef', 'dealerCode', 'regnNo', 'chassisNo', 'engineNo', 'ownerName', 'mobile'],
+      columns: {
+        oemOrderRef: { from: 'OEM Order Ref', required: true, example: 'PO-0001' },
+        dealerCode: { from: 'Dealer Code', required: true, transform: 'upper', example: 'WB01' },
+        regnNo: { from: 'Registration No', required: true, transform: 'upper', example: 'WB02AB1234' },
+        chassisNo: { from: 'Chassis No', required: true, transform: 'upper', example: 'MA1ABCDEFGH123456' },
+        engineNo: { from: 'Engine No', required: true, transform: 'upper', example: 'EAB1234567' },
+        ownerName: { from: 'Owner Name', example: 'Demo Owner (fictional)' },
+        mobile: { from: 'Owner Mobile', transform: 'digits', example: '9000000000' },
+      },
+    },
+  },
+];
+
 export const IMPORT_PROFILES = [
   {
     code: 'OEM_KRANTI_CSV',
@@ -174,6 +254,25 @@ export const IMPORT_PROFILES = [
     },
   },
   {
+    code: 'OEM_KRANTI_VEHICLES',
+    name: 'Kranti Autos vehicle data',
+    sourceName: 'Kranti Autos (fictional)',
+    targetType: 'hsrp.oem-vehicle',
+    mapping: {
+      columns: {
+        chassisNo: { from: 'Chassis No', required: true, transform: 'upper' },
+        engineNo: { from: 'Engine No', required: true, transform: 'upper' },
+        model: { from: 'Model', required: true },
+        vahanCategory: { from: 'Category', transform: 'upper' },
+        dealerCode: { from: 'Dealer Code', required: true, transform: 'upper' },
+        invoiceNo: { from: 'Invoice No' },
+        invoiceDate: { from: 'Invoice Date' },
+      },
+      context: { oemCode: 'KRANTI' },
+    },
+  },
+  ...STANDARD_OEM_PROFILES,
+  {
     code: 'STOCK_RECEIPT',
     name: 'Plate stock receipt',
     sourceName: 'Plate manufacturer delivery note',
@@ -188,6 +287,47 @@ export const IMPORT_PROFILES = [
     },
   },
 ];
+
+/** Postpaid bill (D46). */
+export const BILL_TEMPLATE: { code: string; name: string; layout: Layout } = {
+  code: 'bill',
+  name: 'Postpaid bill',
+  layout: {
+    page: 'A4',
+    elements: [
+      { type: 'heading', text: 'BILL  {{bill.billNo}}', size: 18 },
+      { type: 'text', text: 'Suraksha Plates Pvt Ltd (fictional) · HSRP plates supplied for {{oem.name}} · prototype print format', size: 9 },
+      { type: 'spacer', height: 8 },
+      {
+        type: 'fields',
+        columns: 3,
+        items: [
+          { label: 'Bill to', value: '{{bill.billTo}}' },
+          { label: 'Billed as', value: '{{bill.billToType}}' },
+          { label: 'Bill date', value: '{{bill.date}}' },
+          { label: 'Period', value: '{{bill.period}}' },
+          { label: 'Cycle', value: '{{bill.cycle}}' },
+          { label: 'Orders', value: '{{bill.lineCount}}' },
+        ],
+      },
+      { type: 'rule' },
+      {
+        type: 'table',
+        source: 'lines',
+        columns: [
+          { header: '#', value: '{{rowNo}}', width: 0.4 },
+          { header: 'Order', value: '{{orderNo}}', width: 1.6 },
+          { header: 'Registration', value: '{{regnNo}}', width: 1.4 },
+          { header: 'Dispatched', value: '{{dispatched}}', width: 1.1 },
+          { header: 'Amount (Rs)', value: '{{amount}}', width: 1.1 },
+        ],
+      },
+      { type: 'rule' },
+      { type: 'big', text: 'Total Rs {{bill.amount}}', size: 16, align: 'right' },
+      { type: 'text', text: 'Prices include the plate set, fitment and applicable charges as quoted on each order. Prototype: no tax invoice.', size: 8 },
+    ],
+  },
+};
 
 export const DOC_TEMPLATES: Array<{ code: string; name: string; layout: Layout }> = [
   {
@@ -316,4 +456,5 @@ export const DOC_TEMPLATES: Array<{ code: string; name: string; layout: Layout }
       ],
     },
   },
+  BILL_TEMPLATE,
 ];

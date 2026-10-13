@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BillingModule } from './billing/billing.module';
 import { BookingModule } from './booking/booking.module';
 import { DispatchModule } from './dispatch/dispatch.module';
 import { FitmentModule } from './fitment/fitment.module';
@@ -28,6 +29,7 @@ import { RejectionModule } from './rejection/rejection.module';
     ProductionModule,
     DispatchModule,
     FitmentModule,
+    BillingModule,
     OversightModule,
   ],
 })

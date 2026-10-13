@@ -12,7 +12,9 @@ import { InventoryService } from '../inventory/inventory.service';
 import { ScopeService } from '../masters/scope.service';
 import { positionsOf } from '../order-intake/order-state-machine';
 import { OrderService } from '../order-intake/order.service';
+import { PLATE_READER, PlateReader } from '../ports/plate-reader.port';
 import { VEHICLE_REGISTRY, VehicleRegistry } from '../ports/vehicle-registry.port';
+import { judgePlate } from '../shared/plate-ocr';
 import { istDate, istDmy, SUBJECT } from '../shared/subjects';
 import { parseFitmentReply } from './vahan-reply';
 
@@ -45,6 +47,7 @@ export class FitmentService implements OnModuleInit {
     private readonly calls: CallLogService,
     private readonly bus: EventBus,
     @Inject(VEHICLE_REGISTRY) private readonly vahan: VehicleRegistry,
+    @Inject(PLATE_READER) private readonly ocr: PlateReader,
   ) {}
 
   onModuleInit() {
@@ -101,6 +104,51 @@ export class FitmentService implements OnModuleInit {
 
     const fittedAt = input.fittedAt ? new Date(input.fittedAt) : new Date();
     if (fittedAt.getTime() > Date.now() + 5 * 60_000) throw Problem.badRequest('Fitment time is in the future', 'fitted-at');
+
+    // OCR (D45): each plate photo must read the order's registration number, or the fitment is refused.
+    const ocrOn = await this.settings.getOr('fitment.plateOcrRequired', true, [{ type: 'state', id: order.stateCode }]);
+    const plates = (
+      [
+        ['FRONT', photos.front],
+        ['REAR', photos.rear],
+      ] as const
+    ).filter(([pos, f]) => f && positions.includes(pos)) as Array<[ 'FRONT' | 'REAR', Express.Multer.File ]>;
+    const checks = ocrOn ? await Promise.all(plates.map(async ([position, f]) => ({ position, reading: await this.ocr.read(f.buffer, f.mimetype) }))) : [];
+    const judged = checks.map((c) => ({ ...c, ...judgePlate(order.regnNo, c.reading) }));
+    const checkRow = (c: (typeof judged)[number], fileId: string | null, fitmentId: string | null) => ({
+      tenantId: requestContext.tenantId(),
+      orderId: order.id,
+      fitmentId,
+      position: c.position,
+      fileId,
+      expected: order.regnNo,
+      readText: c.reading.text,
+      confidence: c.reading.confidence,
+      engine: c.reading.engine,
+      result: c.result,
+      reason: c.reason,
+      actorId: requestContext.actorId(),
+      deviceId: requestContext.get().deviceId,
+    });
+    const failed = judged.filter((c) => c.result === 'FAIL');
+    if (failed.length) {
+      // Keep the refused attempt (photos and readings) for the audit trail, then refuse the fitment.
+      await this.prisma.tx(async (tx) => {
+        for (const c of judged) {
+          const f = c.position === 'FRONT' ? photos.front! : photos.rear!;
+          const file = await this.files.upload(
+            { data: f.buffer, filename: f.originalname || `${c.position.toLowerCase()}.jpg`, mimeType: f.mimetype, purpose: `fitment-refused-${c.position.toLowerCase()}`, ownerSubjectType: SUBJECT.order, ownerSubjectId: order.id, retentionDays: 3650 },
+            tx,
+          );
+          await tx.fitmentPhotoCheck.create({ data: checkRow(c, file.id, null) });
+        }
+      });
+      throw Problem.unprocessable(
+        `Fitment refused: ${failed.map((c) => `${c.position.toLowerCase()} plate photo: ${c.reason}`).join('; ')}. Take the photos again.`,
+        'plate-ocr-mismatch',
+      );
+    }
+
     const fitment = await this.prisma.tx(async (tx) => {
       const up = async (f: Express.Multer.File | undefined, kind: string) =>
         f ? (await this.files.upload({ data: f.buffer, filename: f.originalname || `${kind}.jpg`, mimeType: f.mimetype, purpose: `fitment-${kind}`, ownerSubjectType: SUBJECT.order, ownerSubjectId: order.id, retentionDays: 3650 }, tx)).id : null;
@@ -121,6 +169,7 @@ export class FitmentService implements OnModuleInit {
           longitude: input.longitude,
         },
       });
+      for (const c of judged) await tx.fitmentPhotoCheck.create({ data: checkRow(c, c.position === 'FRONT' ? row.frontPhotoId : row.rearPhotoId, row.id) });
       await this.inventory.markFitted(tx, order.id);
       await this.orders.transition(tx, order.id, 'FITTED', 'fitment-recorded');
       await this.bus.publish(tx, { type: 'FitmentRecorded', subjectType: SUBJECT.order, subjectId: order.id, payload: { orderId: order.id, orderNo: order.orderNo, fitmentId: row.id } });
@@ -170,8 +219,17 @@ export class FitmentService implements OnModuleInit {
     });
   }
 
+  /** OCR readings of fitment photos, refused attempts included (order detail, reports). */
+  photoChecks(orderIds: string[]) {
+    return this.prisma.fitmentPhotoCheck.findMany({ where: { orderId: { in: orderIds } }, orderBy: { createdAt: 'asc' } });
+  }
+
   forOrder(orderId: string) {
     return this.prisma.fitment.findUnique({ where: { orderId } });
+  }
+
+  forOrders(orderIds: string[]) {
+    return this.prisma.fitment.findMany({ where: { orderId: { in: orderIds } } });
   }
 
   pendingVahan() {

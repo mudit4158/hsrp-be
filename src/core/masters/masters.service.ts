@@ -250,6 +250,16 @@ export class MastersService implements OnModuleInit {
     return db.oem.findFirst({ where: { id, tenantId: requestContext.tenantId() } });
   }
 
+  oems() {
+    return this.prisma.oem.findMany({ where: { tenantId: requestContext.tenantId() }, orderBy: { code: 'asc' } });
+  }
+
+  /** Dealers mapped to an OEM (the OEM × dealer pairs billing is configured for). */
+  async dealersForOem(oemId: string) {
+    const links = await this.prisma.dealerOem.findMany({ where: { oemId } });
+    return this.prisma.dealer.findMany({ where: { id: { in: links.map((l) => l.dealerId) } }, orderBy: { code: 'asc' } });
+  }
+
   async dealerServesOem(dealerId: string, oemId: string, db: Db = this.prisma) {
     return Boolean(await db.dealerOem.findUnique({ where: { dealerId_oemId: { dealerId, oemId } } }));
   }

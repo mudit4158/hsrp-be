@@ -2,6 +2,7 @@ import '../platform/config/env';
 import { Prisma } from '@prisma/client';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { requestContext } from '../platform/context/request-context';
+import { SettingsService } from '../utility/configuration/settings.service';
 import { PrismaService } from '../platform/database/prisma.service';
 import { AuditService } from '../utility/audit/audit.service';
 import { hashKey } from '../utility/identity/api-client.service';
@@ -9,9 +10,9 @@ import { hashPassword } from '../utility/identity/password';
 import { WalletService } from '../utility/wallet/wallet.service';
 import {
   BASE_PRICE, COMPANY, DEALERS, DOC_TEMPLATES, IMPORT_PROFILES, NOTIFY_TEMPLATES, OEMS, ORDER_TYPE_FACTOR, PLATE_SET_FACTOR, PRODUCTS, ROLES,
-  SEQUENCES, SETTINGS, STATE_FACTOR, STATES, STATIONS, TENANT, TICKET_CATEGORIES, VEHICLE_CATEGORIES, WALLETS,
+  BILL_EMAIL, BILL_TEMPLATE, BILLING_SETTINGS, STANDARD_OEM_PROFILES, KRANTI_STEPS, krantiModel, SEQUENCES, SETTINGS, STATE_FACTOR, STATES, STATIONS, TENANT, TICKET_CATEGORIES, VEHICLE_CATEGORIES, WALLETS,
 } from './fixtures';
-import { generateVehicles, rng, SeedVehicle } from './vehicles';
+import { generateVehicles, NEW_POOLS, rng, SeedVehicle } from './vehicles';
 
 const log = (m: string) => console.log(`[seed] ${m}`);
 const DAY = 86400_000;
@@ -39,7 +40,8 @@ async function main() {
   await prisma.$connect();
   const existing = await prisma.tenant.findUnique({ where: { id: TENANT.id } });
   if (existing && process.env.SEED_RESET !== 'true') {
-    log('Seed data already present; skipping (set SEED_RESET=true to wipe and reseed).');
+    log('Seed data already present; applying upgrades only (set SEED_RESET=true to wipe and reseed).');
+    await requestContext.runAsSystem(TENANT.id, () => upgrade(prisma));
     await prisma.$disconnect();
     return;
   }
@@ -198,7 +200,8 @@ async function seed(prisma: PrismaService, password: string) {
       },
     ],
   });
-  log(`Mock VAHAN: ${vehicles.length} vehicles; Zenmo catalogue: ${zenmo.length} chassis`);
+  const krantiData = await seedKrantiVehicleData(prisma, oems.KRANTI.id, vehicles);
+  log(`Mock VAHAN: ${vehicles.length} vehicles; Zenmo catalogue: ${zenmo.length} chassis; Kranti vehicle data: ${krantiData} chassis`);
 
   // ---------------------------------------------------------------- 200 orders across every status
   const placeholder = await prisma.fileObject.create({
@@ -208,6 +211,54 @@ async function seed(prisma: PrismaService, password: string) {
   await seedOrders(prisma, wallets, { tenantId, now, dealers, oems, stations, stock, vehicles, placeholderId: placeholder.id });
   await seedTickets(prisma, tenantId, now);
   await audit.record({ action: 'seed.run', subjectType: 'system', subjectId: 'seed', after: { vehicles: vehicles.length } });
+}
+
+/** Kranti's vehicle data for every new Kranti vehicle in mock VAHAN (no dealer: the dealer check is skipped for these). */
+async function seedKrantiVehicleData(prisma: PrismaService, oemId: string, vehicles: Array<Pick<SeedVehicle, 'maker' | 'scenario' | 'chassisNo' | 'engineNo' | 'vchCatg'>>) {
+  const rows = vehicles.filter((v) => v.maker.startsWith('KRANTI') && NEW_POOLS.includes(v.scenario));
+  const res = await prisma.oemVehicle.createMany({
+    data: rows.map((v) => ({ tenantId: TENANT.id, oemId, chassisNo: v.chassisNo, engineNo: v.engineNo, model: krantiModel(v.vchCatg), vahanCategory: v.vchCatg, source: 'SEED' })),
+    skipDuplicates: true,
+  });
+  return res.count;
+}
+
+/**
+ * Additive changes for a database seeded by an earlier version. Each block checks its own marker, so a restart
+ * applies it once; existing data is never removed.
+ */
+async function upgrade(prisma: PrismaService) {
+  const tenantId = TENANT.id;
+  // D42: OEM vehicle data file and the oem-vehicle-data validation step for Kranti.
+  const profile = IMPORT_PROFILES.find((p) => p.code === 'OEM_KRANTI_VEHICLES')!;
+  if (!(await prisma.importProfile.findUnique({ where: { tenantId_code: { tenantId, code: profile.code } } }))) {
+    await prisma.importProfile.create({ data: { tenantId, ...profile, mapping: profile.mapping as Prisma.InputJsonValue } });
+    await new SettingsService(prisma, new AuditService(prisma)).set({ key: 'order.validationSteps', scopeType: 'oem', scopeId: 'KRANTI', value: KRANTI_STEPS });
+    const kranti = await prisma.oem.findUniqueOrThrow({ where: { tenantId_code: { tenantId, code: 'KRANTI' } } });
+    const vehicles = await prisma.mockVahanVehicle.findMany({ where: { tenantId }, select: { maker: true, scenario: true, chassisNo: true, engineNo: true, vchCatg: true } });
+    const n = await seedKrantiVehicleData(prisma, kranti.id, vehicles.map((v) => ({ ...v, scenario: v.scenario as SeedVehicle['scenario'] })));
+    log(`Upgrade D42: import profile ${profile.code}, Kranti validation steps, ${n} Kranti vehicle data rows`);
+  }
+  // D47: standard OEM bulk-upload profiles. System-owned, so they are kept equal to the fixture on every start.
+  for (const p of STANDARD_OEM_PROFILES) {
+    const existing = await prisma.importProfile.findUnique({ where: { tenantId_code: { tenantId, code: p.code } } });
+    if (!existing) await prisma.importProfile.create({ data: { tenantId, ...p, mapping: p.mapping as Prisma.InputJsonValue } });
+    else if (JSON.stringify(existing.mapping) !== JSON.stringify(JSON.parse(JSON.stringify(p.mapping)))) {
+      await prisma.importProfile.update({ where: { id: existing.id }, data: { name: p.name, sourceName: p.sourceName, mapping: p.mapping as Prisma.InputJsonValue } });
+      log(`Upgrade D47: import profile ${p.code} refreshed`);
+    }
+  }
+  // D46: postpaid billing settings, the bill sequence, e-mail template, PDF layout and permissions.
+  if (!(await prisma.docTemplate.findFirst({ where: { tenantId, code: BILL_TEMPLATE.code } }))) {
+    const settings = new SettingsService(prisma, new AuditService(prisma));
+    for (const s of BILLING_SETTINGS) await settings.set({ key: s.key, scopeType: s.scopeType, scopeId: s.scopeId, value: s.value });
+    if (!(await prisma.docSequence.findFirst({ where: { tenantId, name: 'bill' } }))) await prisma.docSequence.create({ data: { tenantId, name: 'bill', prefix: 'BL{YY}{MM}-', padding: 5 } });
+    await prisma.notifyTemplate.create({ data: { tenantId, ...BILL_EMAIL } });
+    await prisma.docTemplate.create({ data: { tenantId, code: BILL_TEMPLATE.code, name: BILL_TEMPLATE.name, layout: BILL_TEMPLATE.layout as unknown as Prisma.InputJsonValue } });
+    const ops = await prisma.iamRole.findUnique({ where: { tenantId_code: { tenantId, code: 'OPERATIONS' } } });
+    if (ops) await prisma.iamRole.update({ where: { id: ops.id }, data: { permissions: [...new Set([...ops.permissions, 'billing.read', 'billing.manage'])] } });
+    log('Upgrade D46: billing settings (Zenmo postpaid monthly, Kranti prepaid), bill sequence, template, layout, permissions');
+  }
 }
 
 // =====================================================================================================

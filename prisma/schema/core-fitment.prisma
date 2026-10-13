@@ -23,3 +23,27 @@ model Fitment {
   @@index([tenantId, vahanStatus])
   @@map("core_fit_fitment")
 }
+
+/// Every OCR reading of a fitment photo (D45), kept also when the fitment is refused because a plate photo does not
+/// read the order's registration number. fitmentId is set when the fitment was recorded.
+model FitmentPhotoCheck {
+  id         String   @id @default(uuid())
+  tenantId   String   @map("tenant_id")
+  orderId    String   @map("order_id")
+  fitmentId  String?  @map("fitment_id")
+  position   String
+  fileId     String?  @map("file_id")
+  expected   String
+  readText   String?  @map("read_text")
+  confidence Int?
+  engine     String
+  result     String
+  reason     String
+  actorId    String?  @map("actor_id")
+  deviceId   String?  @map("device_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([orderId])
+  @@map("core_fit_photo_check")
+}

@@ -106,7 +106,7 @@ The API runs on :3000 with the worker inside it (`WORKER_ENABLED=true`) and read
 scripts: `pnpm build` (contracts + architecture checks + compile), `pnpm contracts:build`, `pnpm db:sql` (print the
 schema as SQL when writing a migration), `pnpm seed:prod` (seed from the compiled build).
 
-## 4. Click-through script (flows A–L)
+## 4. Click-through script (flows A–Q)
 
 Sign in to the web app as `admin` and keep **Simulator** open (it shows every SMS). Vehicles for demos are on
 **Simulator → VAHAN test vehicles** (`demo-new` for dealer orders, `demo-has-plates` for replacements).
@@ -117,14 +117,25 @@ Sign in to the web app as `admin` and keep **Simulator** open (it shows every SM
 | **B. OEM order by API** | Simulator | **Push a Zenmo API order** (catalogue check + VAHAN). **Repeat last push (same key)** → "replayed: no duplicate created". OEM callbacks tab shows the status sent back. |
 | **C. OEM order by file** | Simulator / OEM files & uploads | **Upload a sample Kranti CSV** → open it under **OEM files & uploads**: good rows become orders, bad rows are listed; **Download error report**. |
 | **D. Customer order** *(disabled, D37)* | ~~Customer portal~~ | — |
-| **E. Station production** | `station.kol` | **Issuance**: dealer WB01 → tick the order → pick a suggested box → Lock boxes → Allocate & create job card → PDF. **Quality check** → Pass. **Sticker printing** → Print (cars only). **Delivery challans** → Create challan (PDF). |
+| **E. Station production** | `station.kol` | **Issuance**: dealer WB01 → tick the order → pick a suggested box → Lock boxes → Allocate & create job card → PDF. **Quality check** → **Upload photos** of each embossed plate → **Read the photos** (OCR must read the order's registration number; until then Pass is disabled) → Pass. **Sticker printing** → Print (cars only). **Delivery challans** → Create challan (PDF). |
 | **F. Dealer inward** | Android `dealer.wb01` → Inward | Open the challan → Accept (or Reject a plate with a reason) → Submit → Sync tab shows Done; the order is INWARDED. |
-| **G. Fitment** | Android → Fitment | Search the registration → laser codes → tick the confirmation → front and rear photos → Submit. Works in airplane mode (queued, sent when online). The server posts to VAHAN; the order becomes COMPLETED and the owner gets an SMS. |
+| **G. Fitment** | Android → Fitment | Search the registration → laser codes → tick the confirmation → front and rear photos (debug: **Test photo** draws the order's number; **Test photo (wrong number)** shows the OCR refusal) → Submit. The server reads both plate photos (OCR); a different number refuses the fitment. Works in airplane mode (queued, sent when online). The server posts to VAHAN; the order becomes COMPLETED and the owner gets an SMS. |
 | **H. Rejection and re-issue** | `station.kol` / Android | QC → **Reject** a plate → **Rejection approval** → Disapprove (back to QC passed). Another order: reject a plate at Android inward → **Approve (re-issue)** → only that plate is re-issued → **second challan**. |
 | **I. Replacement order** | Web `dealer.wb01` → Place order | Replacement, a `demo-has-plates` vehicle, reason, photo → AWAITING_APPROVAL with the amount held. As `ops`: **Approvals** → view evidence → Approve → CONFIRMED. |
 | **J. VAHAN down** | Simulator + Android | VAHAN **down** → record a fitment → order stays FITTED, post retrying on **Integration monitor**. VAHAN **normal** → **Replay all VAHAN posts** → COMPLETED. |
 | **K. Complaint** *(disabled, D37)* | ~~Portal → HSRP Support~~ | Staff can still answer existing complaints on **Complaints** (see tracker F-01, F-02). |
-| **L. Oversight** | `admin` / `ops` | **Dashboard** → any order → timeline, plates, challans, fitment photos, approvals, payments, audit, events. **Audit log**, **Reports** → Export CSV. |
+| **L. Oversight** | `admin` / `ops` | **Dashboard** → any order → timeline, plates, challans, fitment photos, approvals, payments, audit, events. **Audit log**, **Reports** (incl. Order history, Order validation results, OEM history, Laser code audit) → Export CSV. |
+| **N. Postpaid billing** | `ops` → **Billing** | **Setup**: Zenmo is postpaid (monthly), billed to Zenmo; set a dealer's "Bill to" to the dealer. Order a Zenmo vehicle as that dealer: confirmed without a wallet hold (order → Payment tab). **Unbilled charges**: pending, then billable after dispatch. **Bills** → **Run billing now** → open the bill → PDF; the e-mail is on Simulator → SMS & e-mail. |
+| **Q. OEM bulk upload** | `ops` → OEM files & uploads | **Bulk upload OEM data**: choose the OEM and Vehicle data or Orders → **Download template** → fill it → **Upload and load**. Rows are checked like integration data; refused rows are in the error report. |
+| **M. OEM vehicle data** | Simulator / Place order | **New-vehicle demo batch** → Prepare → **Send Kranti file to the import** (6 kept, 2 refused). Order the sheet's vehicles with OEM Kranti: the valid one is confirmed; the one not in the file and the one with the wrong engine are rejected at the "OEM vehicle data" step (D42). |
+
+### On-screen simulator (`pnpm sim`)
+
+`pnpm sim` plays ten end-to-end test cases on screen, one by one, happy flows first. It drives Chrome for the web
+roles and the Android emulator (debug dealer app) for inward and fitment, with a visible cursor, click ripples
+and a caption per step. Each run prepares its own fictional vehicles, so it can be repeated. Test cases, run plan,
+options (`--case`, `--from`, `--kind`, `--speed`, `--pace`, `--manual`, `--list`) and how to add a case:
+[docs/SIMULATION.md](docs/SIMULATION.md). Type-check it with `pnpm sim:check`.
 
 ## 5. How it is built
 
@@ -163,6 +174,7 @@ undocumented, or the Prisma schema changed without a migration; it warns when co
 | Payment gateway | `src/adapters/payment` | PayU-shaped hosted checkout: SHA-512 hash with a merchant salt, mock page (Success / Failure / Cancel), reverse-hash webhook, verify, refunds. |
 | SMS and e-mail | `src/adapters/messaging` | Every message stored and shown on the simulator; SMS without a DLT template id is refused. |
 | File storage | `src/adapters/file-store` | Bytes in PostgreSQL behind `FileStore`; signed short-lived links. |
+| Plate OCR | `src/adapters/ocr` | **Real** OCR by default: tesseract.js in the API process, English model bundled (no download). `OCR_ADAPTER=mock` reads the plate text test images embed instead. Used after embossing (QC gate) and at fitment (D45). |
 
 ## 8. Not built (out of scope for the prototype)
 
@@ -174,4 +186,4 @@ items are in [docs/TRACKER.md](docs/TRACKER.md).
 
 All are in [.env.example](.env.example) with comments. Key ones: `SEED_PASSWORD` (required), `DEMO_MODE` /
 `DEMO_FIXED_OTP`, `WORKER_ENABLED`, `OUTBOX_RETRY_BASE_MS`, `PUBLIC_API_URL` / `PUBLIC_WEB_URL` (gateway redirects),
-the `*_ADAPTER` switches, `API_PORT`, `POSTGRES_PORT`.
+the `*_ADAPTER` switches (incl. `OCR_ADAPTER`: `tesseract` or `mock`), `API_PORT`, `POSTGRES_PORT`.

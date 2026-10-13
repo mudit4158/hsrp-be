@@ -14,9 +14,29 @@ import { signBody } from '../../utility/identity/api-client.service';
 import { toCsv } from '../../utility/import-export/csv';
 import { ImportService } from '../../utility/import-export/import.service';
 import { MockStateService } from '../mock-state.service';
+import { createDemoBatch, DemoSheet, demoCsvRows } from './new-vehicle-demo';
 
 class VahanModeDto extends createZodDto(VahanModeRequest) {}
 class OemPushDto extends createZodDto(z.object({ oemCode: z.string().optional(), repeatLast: z.boolean().default(false) })) {}
+class DemoBatchDto extends createZodDto(
+  z.object({
+    vehicles: z
+      .array(
+        z.object({
+          role: z.string().min(1).max(40),
+          title: z.string().min(1).max(80),
+          expected: z.string().max(300).default(''),
+          category: z.enum(['2WN', 'LMV', 'LPV', '3WT', '2WT']),
+          inOemFile: z.boolean().default(true),
+          engineMismatch: z.boolean().optional(),
+          oem: z.enum(['KRANTI', 'ZENMO']).optional(),
+        }),
+      )
+      .min(1)
+      .max(30)
+      .optional(),
+  }),
+) {}
 
 /** Fixtures written by the seed: what the "OEM side" of the simulation knows. */
 interface OemDemo {
@@ -144,6 +164,45 @@ export class SimulatorController {
       request: { url: `/api/v1/oem/${demo.oemCode}/orders`, idempotencyKey: last.idempotencyKey, body: last.payload },
       response: { status: res.status, replayed: res.headers.get('idempotent-replayed') === 'true', body: await res.json().catch(() => null) },
     };
+  }
+
+  /** New-vehicle demo: fresh vehicles in mock VAHAN plus the sheet of who plays which part. */
+  @Post('new-vehicle-demo')
+  @RequirePermission('simulator.use')
+  async createNewVehicleDemo(@Body() body: DemoBatchDto) {
+    const sheet = await createDemoBatch(this.prisma, requestContext.tenantId(), body?.vehicles);
+    await this.state.set('demo.newVehicle', sheet);
+    return sheet;
+  }
+
+  @Get('new-vehicle-demo')
+  @RequirePermission('simulator.use')
+  newVehicleDemo() {
+    return this.state.get<DemoSheet | null>('demo.newVehicle', null);
+  }
+
+  /** The batch's Kranti vehicle data file, for download (or upload by hand on the OEM files page). */
+  @Get('new-vehicle-demo/csv')
+  @RequirePermission('simulator.use')
+  async newVehicleDemoCsv(@Res() res: Response) {
+    const sheet = await this.requireSheet();
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="kranti-vehicle-data.csv"');
+    res.send(toCsv(demoCsvRows(sheet)));
+  }
+
+  /** Sends the batch's vehicle data file through the import, exactly as an upload on the OEM files page would. */
+  @Post('new-vehicle-demo/upload')
+  @RequirePermission('simulator.use')
+  async uploadNewVehicleDemo() {
+    const sheet = await this.requireSheet();
+    return this.imports.start({ profileCode: 'OEM_KRANTI_VEHICLES', filename: `kranti-vehicle-data-${sheet.createdAt.slice(0, 10)}.csv`, data: Buffer.from(toCsv(demoCsvRows(sheet))) });
+  }
+
+  private async requireSheet() {
+    const sheet = await this.state.get<DemoSheet | null>('demo.newVehicle', null);
+    if (!sheet) throw Problem.conflict('Prepare a new-vehicle demo batch first', 'demo-missing');
+    return sheet;
   }
 
   @Get('oem-csv')

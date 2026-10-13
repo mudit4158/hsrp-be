@@ -39,6 +39,8 @@ export const env = {
     message: str('MESSAGE_ADAPTER', 'mock'),
     oem: str('OEM_ADAPTER', 'mock'),
     fileStore: str('FILE_STORE_ADAPTER', 'db'),
+    /** Plate OCR: tesseract (real, local) or mock (reads the text test images embed). */
+    ocr: str('OCR_ADAPTER', 'tesseract'),
   },
   payu: {
     key: str('PAYU_MERCHANT_KEY', 'MOCKKEY'),

@@ -12,6 +12,8 @@ import { OrderIntakeModule } from '../order-intake/order-intake.module';
 import { ProductionModule } from '../production/production.module';
 import { RejectionModule } from '../rejection/rejection.module';
 import { OversightService } from './oversight.service';
+import { BillingModule } from '../billing/billing.module';
+import { registerAuditReports } from './audit-reports';
 import { registerReports } from './reports';
 
 @ApiTags('oversight')
@@ -60,7 +62,7 @@ export class OversightController {
 }
 
 @Module({
-  imports: [MastersModule, OrderIntakeModule, InventoryModule, FitmentModule, DispatchModule, ProductionModule, RejectionModule, BookingModule],
+  imports: [MastersModule, BillingModule, OrderIntakeModule, InventoryModule, FitmentModule, DispatchModule, ProductionModule, RejectionModule, BookingModule],
   controllers: [OversightController],
   providers: [OversightService],
 })
@@ -72,5 +74,6 @@ export class OversightModule implements OnModuleInit {
 
   onModuleInit() {
     registerReports(this.reporting, this.oversight);
+    registerAuditReports(this.reporting, this.oversight);
   }
 }

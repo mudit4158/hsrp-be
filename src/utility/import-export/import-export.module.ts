@@ -23,6 +23,15 @@ export class ImportController {
     return this.prisma.importProfile.findMany({ where: { tenantId: requestContext.tenantId() }, orderBy: { code: 'asc' } });
   }
 
+  @Get('profiles/:code/template')
+  @RequirePermission('imports.run')
+  async template(@Param('code') code: string, @Res() res: Response) {
+    const t = await this.imports.template(code);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${t.filename}"`);
+    res.send(t.csv);
+  }
+
   @Post()
   @RequirePermission('imports.run')
   @ApiConsumes('multipart/form-data')

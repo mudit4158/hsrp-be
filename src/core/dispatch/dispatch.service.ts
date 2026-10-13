@@ -169,6 +169,10 @@ export class DispatchService {
     return this.prisma.challanLine.findMany({ where: { orderId }, orderBy: { createdAt: 'asc' } });
   }
 
+  linesForAllocations(allocationIds: string[]) {
+    return this.prisma.challanLine.findMany({ where: { allocationId: { in: allocationIds } }, orderBy: { createdAt: 'asc' } });
+  }
+
   challansByIds(ids: string[]) {
     return this.prisma.challan.findMany({ where: { id: { in: ids } } });
   }

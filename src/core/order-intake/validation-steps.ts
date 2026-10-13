@@ -56,3 +56,32 @@ export function judgeStateRules(order: Pick<Order, 'mobile'>, rules: StateRules,
   }
   return { ok: true, message: 'Eligible' };
 }
+
+export interface OemVehicleFacts {
+  oemName: string;
+  model: string;
+  engineNo: string;
+  dealerCode: string | null;
+  invoiceDate?: string | null;
+}
+
+/**
+ * New-vehicle order against the OEM vehicle data. Pure, unit-tested. `record` is the OEM's row for the order's
+ * chassis (null when the chassis is not in the data); `orderDealerCode` is the ordering dealer.
+ */
+export function judgeOemVehicle(
+  order: Pick<Order, 'orderType' | 'chassisNo' | 'engineNo'>,
+  record: OemVehicleFacts | null,
+  ctx: { oemName?: string; orderDealerCode?: string | null },
+): StepResult {
+  if (order.orderType !== 'NEW') return { ok: true, message: 'Not a new-vehicle order; OEM data not needed' };
+  if (!record) return { ok: false, reason: `Chassis ${order.chassisNo} is not in ${ctx.oemName ?? 'the OEM'}'s vehicle data` };
+  if (record.engineNo.toUpperCase() !== order.engineNo.toUpperCase()) {
+    return { ok: false, reason: `Engine ${order.engineNo} does not match ${record.oemName}'s record for chassis ${order.chassisNo} (engine ending ${record.engineNo.slice(-5)})` };
+  }
+  if (record.dealerCode && ctx.orderDealerCode && record.dealerCode !== ctx.orderDealerCode) {
+    return { ok: false, reason: `${record.oemName} supplied chassis ${order.chassisNo} to dealer ${record.dealerCode}, not ${ctx.orderDealerCode}` };
+  }
+  const supplied = record.dealerCode ? ` · supplied to ${record.dealerCode}${record.invoiceDate ? ` on ${record.invoiceDate}` : ''}` : '';
+  return { ok: true, message: `${record.oemName} · ${record.model}${supplied}` };
+}

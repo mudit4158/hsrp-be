@@ -199,6 +199,16 @@ export class OrderService {
     return this.prisma.orderValidation.findMany({ where: { orderId }, orderBy: { createdAt: 'asc' } });
   }
 
+  /** Status changes of many orders, oldest first (order history report). */
+  historyFor(orderIds: string[]) {
+    return this.prisma.orderStatusHistory.findMany({ where: { orderId: { in: orderIds } }, orderBy: { createdAt: 'asc' }, take: 50_000 });
+  }
+
+  /** Validation step results of many orders, oldest first (validation and OEM history reports). */
+  validationsFor(orderIds: string[], step?: string) {
+    return this.prisma.orderValidation.findMany({ where: { orderId: { in: orderIds }, ...(step ? { step } : {}) }, orderBy: { createdAt: 'asc' }, take: 50_000 });
+  }
+
   async countByStatus(where: Prisma.OrderWhereInput = {}) {
     const rows = await this.prisma.order.groupBy({ by: ['status'], where: { tenantId: requestContext.tenantId(), ...where }, _count: true });
     return Object.fromEntries(rows.map((r) => [r.status, r._count]));

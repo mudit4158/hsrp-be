@@ -34,8 +34,8 @@ owner mobile or selling dealer. Business question: B-04.
 | ID | Item | Repos | Priority | Status | Notes |
 | --- | --- | --- | --- | --- | --- |
 | O-01 | Customer OTP must go to the VAHAN-registered mobile | BE, FE | P2 | Blocked | Today the portal sends the OTP to whatever mobile the customer types, so it proves a phone, not ownership. Send the OTP to the mobile registered with VAHAN for that vehicle (VAHAN sends it, or returns a masked number). Blocked on the VAHAN contract (D3). Becomes **P1 before the portal is re-enabled** (B-01). |
-| O-02 | Dealer must be the selling dealer | BE | P2 | Open | Any dealer with a vehicle's registration, chassis and engine numbers can order for it. Check the vehicle was sold through this dealer (selling-dealer code on the VAHAN record, or OEM sales/invoice data). Interim: flag or send to approval orders where the dealer is not mapped to the vehicle's maker. |
-| O-03 | OEM file orders are not vouched for | BE | P2 | Open | Kranti CSV orders get no catalogue check (D4) and staff upload the file. Turn on the catalogue check for CSV OEMs, or require signed files / the OEM API instead of staff uploads. |
+| O-02 | Dealer must be the selling dealer | BE | P2 | In progress | Done for Kranti new-vehicle orders: the `oem-vehicle-data` step (D42) requires the dealer the OEM supplied the vehicle to. Still open for other OEMs and for orders placed without an OEM (N-08). Before D42 any dealer with a vehicle's registration, chassis and engine numbers could order for it. Check the vehicle was sold through this dealer (selling-dealer code on the VAHAN record, or OEM sales/invoice data). Interim: flag or send to approval orders where the dealer is not mapped to the vehicle's maker. |
+| O-03 | OEM file orders are not vouched for | BE | P2 | In progress | Kranti CSV orders are now checked against Kranti's vehicle data file (D42), but the files are still uploaded by staff. Originally: Kranti CSV orders got no catalogue check (D4). Turn on the catalogue check for CSV OEMs, or require signed files / the OEM API instead of staff uploads. |
 | O-04 | Replacement approval checklist | BE, FE | P3 | Open | Add a checklist to the replacement approval (name on the evidence matches the owner; police report number and date for theft) so the manual check is consistent and recorded. |
 
 ## Fitment proof (are the photos real, is it the right vehicle?)
@@ -48,14 +48,14 @@ capture time. Business questions: B-05, B-06.
 | ID | Item | Repos | Priority | Status | Notes |
 | --- | --- | --- | --- | --- | --- |
 | P-01 | Read the laser code off the plate at fitment | AND, BE | P2 | Open | Replace the tick-box: the app reads the code with the camera (on-device text recognition) and sends what it read; the server compares it with the allocation. Mismatch → refuse or flag. |
-| P-02 | Check what the photos show | BE, AND | P3 | Open | Read the registration number and laser code from the plate photos and the last 5 of the chassis from a required chassis photo (`fitment.photoRules`); flag mismatches for review instead of posting to VAHAN. |
+| P-02 | Check what the photos show | BE, AND | P3 | In progress | Registration number: done (D45): fitment photos are read by OCR and a mismatch refuses the fitment. Still open: read the laser code from the plate photos and the last 5 of the chassis from a required chassis photo (`fitment.photoRules`). |
 | P-03 | Record where and when photos were taken | AND, BE | P2 | Open | The app sends GPS and capture time (the API already accepts `latitude` / `longitude`). Flag fitments far from the dealer's site or taken long before submission. Needs dealer site coordinates in the masters. |
 | P-04 | Catch reused photos | BE | P2 | Open | Compare each photo's SHA-256 with earlier fitments, plus a perceptual hash for lightly edited copies; flag duplicates. |
 | P-05 | Trust the capturing device | AND, BE | P2 | Open | Remove the debug "Test photo" button from release builds and add Play Integrity (app attestation) so the server knows uploads come from the genuine app. Links to AND N-03 (release build). |
 | P-06 | Fitment review queue | BE, FE | P2 | Open | Operations review flagged fitments plus a random sample; flagged fitments wait before the VAHAN post (reuse the Approvals utility). |
 | P-07 | Owner confirmation | BE | P3 | Open | Put the fitted laser codes in the completion SMS (`FITMENT_DONE` template) so the owner can report a mismatch. |
 | P-08 | Stricter file checks | BE | P3 | Open | Detect the real file type from its contents; refuse fitment photos without camera metadata (EXIF). |
-| P-09 | Confirm the physical plate at embossing and QC | FE, BE | P2 | Open | Issuance picks the next free code in the box and trusts the operator to emboss that plate. Scan the code at embossing or QC (FE station screens; webcam or USB scanner) so allocation and physical plate are proven to match. |
+| P-09 | Confirm the physical plate at embossing and QC | FE, BE | P2 | In progress | Registration number: done (D45): QC needs a photo of each embossed plate that OCR reads as the order's number. Still open: the laser code itself — issuance picks the next free code in the box and trusts the operator to emboss that plate. Scan the code at embossing or QC (FE station screens; webcam or USB scanner) so allocation and physical plate are proven to match. |
 | P-10 | QR codes on our own documents | BE, FE, AND | P3 | Open | QR with the order / challan / job card number on the job card, challan and sticker PDFs (needs a `qr` element in the PDF renderer, BE). Scan to open the record: Android ML Kit (offline), web USB scanner or webcam. |
 | P-11 | QR labels on plate boxes | BE | P3 | Blocked | QR on each box (box number, codes) so stock receipt and issuance are a scan. Blocked on the plate manufacturer printing it, or decide to print our own labels at stock receipt. |
 | P-12 | No free typing of laser codes | FE, BE | P2 | Open | QC "Switch code" is the only place a full code is typed. Scan first (text recognition, as in P-01 / P-09), typing as a fallback entered twice. |
@@ -67,6 +67,10 @@ capture time. Business questions: B-05, B-06.
 | N-02 | Real adapters (VAHAN, PayU, SMS/e-mail, OEM) | BE | P2 | Blocked | Each `real` adapter is an empty placeholder. Blocked on the real contracts and credentials (D3, D6). Never call real endpoints from the prototype. |
 | N-04 | Worker as its own process | BE | P3 | Open | Outbox and scheduled jobs run inside the API (`WORKER_ENABLED=true`). Splitting needs a second entry point that boots the same module with HTTP off. |
 | N-05 | Final print layouts | BE | P3 | Blocked | Job card, challan, sticker and receipt are simple PDFs (D16). Needs the official layouts. |
+| N-10 | Prepaid dealer credit control (OEM × dealer) | BE, FE | P2 | Open | Designed, not built (user request): OEM allocates or withdraws credits per dealer, freezes a dealer, sets a per-order maximum, a monthly cap and allowed vehicle classes, and chooses the funding source (OEM credits only, the dealer's own only, or OEM first then own); dealers may add own credits and ask the OEM for more (approvals). Clickable prototype: [Dealer Credit Control](https://claude.ai/artifact/TgJ55GGG54MrP2qT8BskTW). Plan in the prototype's "How it would fit" section. |
+| N-11 | Billing follow-ups | BE, FE | P2 | Open | Postpaid billing (D46) has no tax invoice (GST), payment collection or reminders (bills are marked paid by hand), dealer/OEM view of their own bills, credit limit for postpaid parties, or credit notes for re-issues and cancellations after billing. |
+| N-09 | OCR accuracy on real photos | BE | P2 | Open | The tesseract adapter (D45) reads generated test plates reliably; real camera photos (angle, glare, dirt, IND hologram) need tuning (crop to the plate, deskew, contrast) or a dedicated ANPR engine behind the same `PlateReader` port. Measure on sample photos before real use; a strict exact-match rule will refuse misreads. |
+| N-08 | OEM vehicle data for every OEM | BE | P2 | Open | The `oem-vehicle-data` step (D42) runs only for Kranti orders (setting `order.validationSteps`, scope oem KRANTI). New-vehicle orders without an OEM or for Zenmo are not checked. Decide per OEM (file vs. API catalogue) and whether a NEW order must name its OEM. |
 | N-06 | Unit tests for production and dispatch services | BE | P3 | Open | Covered end to end by `pnpm demo:e2e` (flows E, F, H) but not by unit tests. |
 
 ## To verify
@@ -108,6 +112,13 @@ capture time. Business questions: B-05, B-06.
 
 | ID | Item | Commit |
 | --- | --- | --- |
+| — | Postpaid billing: payment mode and cycle per OEM, bill-to per OEM × dealer, charges, cycle close and Run billing now, bill PDF and e-mail, Billing page; demo:e2e flow N; simulator TC-13 (D46) | "Billing and OEM bulk upload" commit |
+| — | Bulk upload of OEM data with standard templates (vehicle data, orders), OEM chosen at upload, template download; demo:e2e flow Q; simulator TC-14 (D47) | same commit |
+| — | Plate photo OCR after embossing (QC gate) and at fitment (refusal on mismatch), PlateReader port with tesseract and mock adapters, "Plate photo checks (OCR)" report, simulator cases TC-11 and TC-12 (D45) | "Plate photo OCR" commit |
+| — | OEM vehicle data file and the `oem-vehicle-data` validation step (D42); demo:e2e flow M | "OEM vehicle data, audit reports and on-screen simulator" commit |
+| — | Audit reports: order history, order validation results, OEM history, laser code audit (D43) | same commit |
+| — | On-screen simulator `pnpm sim` with 10 end-to-end cases (D44, docs/SIMULATION.md) | same commit |
+| — | Issuance box suggestions left out needed plate sizes (only the first 8 boxes were shown); now up to 3 per needed size | FE commit of the same day |
 | N-07 | Repositories separated into hsrp-dms-be, hsrp-dms-fe, hsrp-dms-android (D38–D41) | see each repo's "Split from the monorepo" commit |
 | — | Outbox dispatcher compared due times with the database clock (a few ms of Docker clock lag left replayed deliveries waiting); now uses the Node clock it writes with | backend split commit |
 | — | Customer portal detached (D37) | monorepo `b9b39fa` |

@@ -23,6 +23,15 @@ export class CallLogService {
     }
   }
 
+  /** Calls to one external system, newest first. */
+  list(filter: { system: string; from?: Date; to?: Date }) {
+    return this.prisma.callLog.findMany({
+      where: { tenantId: requestContext.tenantId(), system: filter.system, ...(filter.from || filter.to ? { createdAt: { gte: filter.from, lte: filter.to } } : {}) },
+      orderBy: { createdAt: 'desc' },
+      take: 5000,
+    });
+  }
+
   private async write(
     meta: { system: string; operation: string; subjectType?: string; subjectId?: string; request?: unknown },
     outcome: string,

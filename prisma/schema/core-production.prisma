@@ -45,3 +45,28 @@ model StickerPrint {
   @@unique([orderId, printNo])
   @@map("core_prd_sticker_print")
 }
+
+/// Photo of an embossed plate read by OCR before QC (D45). The plate passes only when the photo reads the order's
+/// registration number; QC "Pass" needs a passing check for every plate allocated to the order.
+model PlatePhotoCheck {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  orderId      String   @map("order_id")
+  allocationId String   @map("allocation_id")
+  laserCode    String   @map("laser_code")
+  position     String
+  fileId       String   @map("file_id")
+  expected     String
+  readText     String?  @map("read_text")
+  confidence   Int?
+  engine       String
+  result       String
+  reason       String
+  actorId      String?  @map("actor_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([orderId])
+  @@index([allocationId])
+  @@map("core_prd_photo_check")
+}

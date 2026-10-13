@@ -34,14 +34,17 @@ src/
                            (outbox/event bus, idempotency, call log), notification, file-storage, payments, wallet,
                            scheduling, documents, import-export, approvals, tickets, reporting
   core/                    HSRP modules: masters, pricing, inventory, order-intake, booking, production, dispatch,
-                           rejection, fitment, customer-portal (DETACHED, D37), oversight; core/ports = interfaces
+                           rejection, fitment, billing (postpaid, D46), customer-portal (DETACHED, D37), oversight;
+                           core/ports = interfaces
   adapters/                one folder per external system (mock + empty real placeholder) + the simulator
   seed/                    fictional seed data (run.ts, fixtures.ts, vehicles.ts)
 prisma/schema/             one .prisma file per owning module; first line "// owner: <folder>"; migrations/ inside
 packages/contracts/        shared enums, zod request schemas, event names (the FE keeps a synced copy)
 scripts/                   demo-e2e.ts, check-module-tables.cjs, docs-check.mjs, with-env.cjs
+sim/                       on-screen simulator (`pnpm sim`): core/ (browser + phone drivers, overlay, API helper),
+                           scenes/ (reusable steps), cases/ (one file per end-to-end test case, run order in index.ts)
 test/                      Jest setup (test database) and helpers
-docs/                      DECISIONS.md (system-wide), TRACKER.md (system + backend)
+docs/                      DECISIONS.md (system-wide), TRACKER.md (system + backend), SIMULATION.md (test cases, run plan)
 .claude/skills/            maintain-docs skill
 .githooks/                 pre-commit (docs-check, architecture check)
 ```
@@ -65,8 +68,10 @@ Run from the repo root. Needs Node 20+ (tested on 22 and 24), pnpm 9, Docker Des
 | `pnpm contracts:build` | Build only `packages/contracts` |
 | `pnpm lint:deps` | Architecture checks: dependency direction (dependency-cruiser) + module table ownership |
 | `pnpm test` | Unit tests (Jest). DB tests use the `hsrp_test` database on the Compose PostgreSQL (start `db` first) |
-| `pnpm demo:e2e` | Acceptance flows A–L against a running API (`API_BASE_URL`, default http://localhost:3000) |
+| `pnpm demo:e2e` | Acceptance flows A–Q against a running API (`API_BASE_URL`, default http://localhost:3000) |
 | `pnpm docs:check` | Documentation and consistency checks (also run by the pre-commit hook) |
+| `pnpm sim` | On-screen simulator: runs the end-to-end test cases of `docs/SIMULATION.md` in Chrome and on the emulator (`--case`, `--from`, `--kind`, `--speed`, `--pace`, `--manual`, `--list`) |
+| `pnpm sim:check` | Type-check the simulator |
 
 Demo users: `admin`, `ops`, `station.kol`, `station.bbs`, `dealer.wb01`, `dealer.od02`; password = `SEED_PASSWORD`
 in `.env`. **Never print, log or commit `SEED_PASSWORD` or other secrets.**
@@ -81,7 +86,8 @@ in `.env`. **Never print, log or commit `SEED_PASSWORD` or other secrets.**
 3. **Events before direct calls.** State changes publish events through `EventBus.publish(tx, …)` in the same
    transaction (transactional outbox). Subscribers run from the outbox with retries.
 4. **Ports and adapters.** Core depends on interfaces (`VehicleRegistry`, `OrderSource`, `OemVehicleCatalog`,
-   `PaymentProvider`, `MessageSender`, `FileStore`). Adapters are chosen by `*_ADAPTER` env vars (only mock/db exist).
+   `PaymentProvider`, `MessageSender`, `FileStore`, `PlateReader`). Adapters are chosen by `*_ADAPTER` env vars (mock/db,
+   plus the real local OCR `OCR_ADAPTER=tesseract`, D45).
 5. **Configuration over code.** Prices, validation steps, rule packs, cut-off date, photo rules, slot capacity,
    templates, print layouts and number sequences are data (`util_config_setting`, templates, masters).
 6. **External calls never inside a user request.** VAHAN, OEM callbacks, payment verify/refund, SMS and e-mail run
@@ -102,6 +108,12 @@ in `.env`. **Never print, log or commit `SEED_PASSWORD` or other secrets.**
 - Contract change (`packages/contracts`) → also run `pnpm contracts:sync` in `hsrp-dms-fe` and commit there; update
   the Kotlin models in `hsrp-dms-android` (`app/.../data/Api.kt`) if the Android app uses the changed endpoint.
 - Seed and fixtures: fictional and obviously fake only. No real people, phone numbers or vehicles.
+- Seed upgrades: the seed only runs fully on an empty database. Additive changes for existing databases go in
+  `upgrade()` in `src/seed/run.ts`, guarded by their own marker (e.g. the import profile they add).
+- New end-to-end behaviour → add or extend a simulator case (`sim/cases`, built from `sim/scenes`) and its section
+  in `docs/SIMULATION.md`; keep `pnpm demo:e2e` as the fast API-level regression.
+- Simulator selectors use visible labels and button names; when you rename a label or button the simulator
+  clicks, update `sim/scenes` in the same change (run `pnpm sim --case <id>` to check).
 - Comments: explain why, not what; match the surrounding style. Commit messages: imperative summary + body.
 
 ## Safety
@@ -137,8 +149,25 @@ changes. It warns when code changes without any doc change.
 - Jest timeout is 30 s because DB tests truncate ~70 tables before each test.
 - `pnpm demo:e2e` consumes demo vehicles; after many runs reseed (`docker compose down -v` or `SEED_RESET=true`).
 - The customer portal is detached (D37): `/api/v1/public/*` returns 404 by design; flows D and K are skipped.
+- `pnpm sim` needs the emulator running with the **debug** dealer app (its automation bridge answers on
+  127.0.0.1:7777 through `adb forward`). It prepares fresh vehicles every run; each run uses ~26 plates and ~₹4,000
+  of the WB01 wallet, so reseed after many runs.
+- `pnpm demo:e2e` flow M and `pnpm sim` both replace the new-vehicle batch shown on the Simulator page.
+- `pnpm demo:e2e` flows A–C, H–J use the seeded demo vehicle pools and use them up after many runs ("Not enough
+  unused sample vehicles"); reseed then (`docker compose down -v` or `SEED_RESET=true`, which wipes the demo data).
+- Billing (D46): payment mode, cycle, bill-to and contacts are settings (`billing.*`, scopes `oem` and `oem-dealer`
+  "OEM:DEALER"), not columns. Order-flow and billing both read `billing.paymentMode`; keep them in step.
+- Import profiles are stored as jsonb, which does not keep key order: give a profile `columnOrder` if its template
+  column order matters (D47).
+- Plate OCR (D45): QC "Pass" needs a passing plate photo per allocated plate, and fitment needs plate photos that
+  read the order's number. `pnpm demo:e2e` therefore renders plate photos with headless Chrome
+  (`sim/core/plate-image.ts`); Chrome must be installed. Turn either check off per state with the settings
+  `production.plateOcrRequired` / `fitment.plateOcrRequired`.
+- The tesseract model ships in `@tesseract.js-data/eng` (a runtime dependency); the worker starts on first use
+  (~0.3 s) and reads a photo in ~0.1–1 s.
 
 ## Where things are tracked
 
 - Open items and pending fixes: `docs/TRACKER.md` (start here when picking up work).
-- Decisions: `docs/DECISIONS.md` (D1–D41) and the HLD.
+- Decisions: `docs/DECISIONS.md` (D1–D47) and the HLD.
+- End-to-end test cases and run plan: `docs/SIMULATION.md`.

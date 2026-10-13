@@ -89,17 +89,42 @@ model OrderValidation {
 
 /// Customer-portal vehicle check: the VAHAN lookup runs from the outbox; the portal polls this row.
 model VehicleCheck {
-  id          String   @id @default(uuid())
-  tenantId    String   @map("tenant_id")
-  stateCode   String   @map("state_code")
-  regnNo      String   @map("regn_no")
-  chassisLast5 String  @map("chassis_last5")
-  engineLast5 String   @map("engine_last5")
-  status      String   @default("PENDING")
-  result      Json?
-  error       String?
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  stateCode    String   @map("state_code")
+  regnNo       String   @map("regn_no")
+  chassisLast5 String   @map("chassis_last5")
+  engineLast5  String   @map("engine_last5")
+  status       String   @default("PENDING")
+  result       Json?
+  error        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@map("core_ord_vehicle_check")
+}
+
+/// Vehicles an OEM reports as built and supplied to a dealer (OEM vehicle data file). New-vehicle orders are
+/// checked against it by the "oem-vehicle-data" validation step: chassis present, engine matches, dealer matches.
+model OemVehicle {
+  id            String   @id @default(uuid())
+  tenantId      String   @map("tenant_id")
+  oemId         String   @map("oem_id")
+  chassisNo     String   @map("chassis_no")
+  engineNo      String   @map("engine_no")
+  model         String
+  vahanCategory String?  @map("vahan_category")
+  /// Dealer the vehicle was supplied to; null for records seeded without one (dealer not checked).
+  dealerId      String?  @map("dealer_id")
+  invoiceNo     String?  @map("invoice_no")
+  invoiceDate   String?  @map("invoice_date")
+  /// FILE (import job in importJobId) or SEED.
+  source        String   @default("FILE")
+  importJobId   String?  @map("import_job_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, oemId, chassisNo])
+  @@index([tenantId, chassisNo])
+  @@map("core_ord_oem_vehicle")
 }

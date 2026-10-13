@@ -11,6 +11,7 @@ export const CORE_EVENTS = [
   'OrderStatusChanged',
   'PlateIssued',
   'QcPassed',
+  'PlatePhotosChecked',
   'QcRejected',
   'StickerPrinted',
   'ChallanCreated',

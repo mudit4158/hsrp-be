@@ -1,18 +1,24 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Order } from '@prisma/client';
 import type { IssuanceRequest, QcRequest } from '@hsrp/contracts';
 import { requestContext } from '../../platform/context/request-context';
 import { PrismaService } from '../../platform/database/prisma.service';
 import { Problem } from '../../platform/http/problem';
 import { AuditService } from '../../utility/audit/audit.service';
+import { SettingsService } from '../../utility/configuration/settings.service';
 import { DocumentsService } from '../../utility/documents/documents.service';
+import { FileService } from '../../utility/file-storage/file.service';
 import { EventBus } from '../../utility/integration-hub/event-bus.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { MastersService } from '../masters/masters.service';
 import { ScopeService } from '../masters/scope.service';
 import { OrderService } from '../order-intake/order.service';
+import { PLATE_READER, PlateReader } from '../ports/plate-reader.port';
 import { RejectionService } from '../rejection/rejection.module';
+import { judgePlate } from '../shared/plate-ocr';
 import { istDate, SUBJECT } from '../shared/subjects';
+
+type PlatePhoto = { buffer: Buffer; mimetype: string; originalname?: string };
 
 /** Job cards, plate allocation from boxes, quality check and sticker printing. */
 @Injectable()
@@ -27,6 +33,9 @@ export class ProductionService {
     private readonly docs: DocumentsService,
     private readonly audit: AuditService,
     private readonly bus: EventBus,
+    private readonly files: FileService,
+    private readonly settings: SettingsService,
+    @Inject(PLATE_READER) private readonly ocr: PlateReader,
   ) {}
 
   /** The station's own id for station users; any station for staff. */
@@ -128,7 +137,94 @@ export class ProductionService {
   async qcQueue(stationId?: string) {
     const sid = await this.stationFor(stationId);
     const orders = await this.orders.find({ status: 'ISSUED', stationId: sid });
-    return Promise.all(orders.map(async (o) => ({ ...o, allocations: await this.inventory.activeAllocations(o.id) })));
+    return Promise.all(
+      orders.map(async (o) => {
+        const allocations = await this.inventory.activeAllocations(o.id);
+        return { ...o, allocations, photoChecks: await this.latestPhotoChecks(allocations.map((a) => a.id)) };
+      }),
+    );
+  }
+
+  // ------------------------------------------------------------------ plate photo check after embossing (OCR, D45)
+
+  /** The newest OCR check of each given allocation, with a short-lived link to its photo. */
+  private async latestPhotoChecks(allocationIds: string[]) {
+    const rows = await this.prisma.platePhotoCheck.findMany({ where: { allocationId: { in: allocationIds } }, orderBy: { createdAt: 'desc' } });
+    const latest = allocationIds.map((id) => rows.find((r) => r.allocationId === id)).filter(Boolean) as typeof rows;
+    return latest.map((r) => ({ ...r, photoUrl: this.files.signedPath(r.fileId) }));
+  }
+
+  /** Every OCR check of the order's plates (order detail). */
+  photoChecks(orderId: string) {
+    return this.prisma.platePhotoCheck.findMany({ where: { orderId }, orderBy: { createdAt: 'asc' } });
+  }
+
+  /** OCR checks of many orders (reports). */
+  photoChecksFor(orderIds: string[]) {
+    return this.prisma.platePhotoCheck.findMany({ where: { orderId: { in: orderIds } }, orderBy: { createdAt: 'asc' } });
+  }
+
+  /**
+   * The station photographs each embossed plate; OCR must read the order's registration number on it. Every
+   * attempt is kept. QC can pass the order only when each allocated plate has a passing check.
+   */
+  async checkPlatePhotos(orderId: string, photos: Partial<Record<'FRONT' | 'REAR', PlatePhoto>>) {
+    const order = await this.orders.get(orderId);
+    await this.stationFor(order.stationId ?? undefined);
+    if (order.status !== 'ISSUED') throw Problem.conflict(`${order.orderNo} is ${order.status}; plate photos are checked after embossing, before QC`, 'not-issued');
+    const active = await this.inventory.activeAllocations(orderId);
+    const given = active.filter((a) => photos[a.position as 'FRONT' | 'REAR']);
+    if (!given.length) throw Problem.badRequest('Attach a photo of each embossed plate (front, rear)', 'photos-required');
+    // OCR before the transaction: it is local but takes a moment per photo.
+    const read: Array<{ a: (typeof active)[number]; f: PlatePhoto; reading: Awaited<ReturnType<PlateReader['read']>>; judged: ReturnType<typeof judgePlate> }> = [];
+    for (const a of given) {
+      const f = photos[a.position as 'FRONT' | 'REAR']!;
+      if (!/^image\//.test(f.mimetype)) throw Problem.badRequest(`The ${a.position.toLowerCase()} photo must be an image`, 'photo-type');
+      const reading = await this.ocr.read(f.buffer, f.mimetype);
+      read.push({ a, f, reading, judged: judgePlate(order.regnNo, reading) });
+    }
+    const tenantId = requestContext.tenantId();
+    const rows = await this.prisma.tx(async (tx) => {
+      const out = [];
+      for (const r of read) {
+        const kind = r.a.position.toLowerCase();
+        const file = await this.files.upload(
+          { data: r.f.buffer, filename: r.f.originalname || `${kind}.jpg`, mimeType: r.f.mimetype, purpose: `emboss-${kind}`, ownerSubjectType: SUBJECT.order, ownerSubjectId: order.id, retentionDays: 3650 },
+          tx,
+        );
+        out.push(
+          await tx.platePhotoCheck.create({
+            data: {
+              tenantId,
+              orderId,
+              allocationId: r.a.id,
+              laserCode: r.a.laserCode,
+              position: r.a.position,
+              fileId: file.id,
+              expected: order.regnNo,
+              readText: r.reading.text,
+              confidence: r.reading.confidence,
+              engine: r.reading.engine,
+              result: r.judged.result,
+              reason: r.judged.reason,
+              actorId: requestContext.actorId(),
+            },
+          }),
+        );
+      }
+      await this.audit.record(
+        { action: 'qc.plate-photos', subjectType: SUBJECT.order, subjectId: orderId, after: out.map((c) => ({ position: c.position, laserCode: c.laserCode, read: c.readText, result: c.result })) },
+        tx,
+      );
+      await this.bus.publish(tx, {
+        type: 'PlatePhotosChecked',
+        subjectType: SUBJECT.order,
+        subjectId: orderId,
+        payload: { orderId, orderNo: order.orderNo, checks: out.map((c) => ({ position: c.position, result: c.result, read: c.readText })) },
+      });
+      return out;
+    });
+    return { orderNo: order.orderNo, regnNo: order.regnNo, checks: rows.map((r) => ({ ...r, photoUrl: this.files.signedPath(r.fileId) })) };
   }
 
   async qc(orderId: string, req: QcRequest) {
@@ -138,6 +234,14 @@ export class ProductionService {
     return this.prisma.tx(async (tx) => {
       const tenantId = requestContext.tenantId();
       if (req.result === 'PASS') {
+        if (await this.settings.getOr('production.plateOcrRequired', true, [{ type: 'state', id: order.stateCode }])) {
+          const active = await this.inventory.activeAllocations(orderId, tx);
+          const passed = await tx.platePhotoCheck.findMany({ where: { allocationId: { in: active.map((a) => a.id) }, result: 'PASS' }, select: { allocationId: true } });
+          const missing = active.filter((a) => !passed.some((p) => p.allocationId === a.id)).map((a) => a.position.toLowerCase());
+          if (missing.length) {
+            throw Problem.conflict(`Plate photo check (OCR) has not passed for the ${missing.join(' and ')} plate: upload a photo that reads ${order.regnNo}`, 'plate-ocr-required');
+          }
+        }
         await tx.qcRecord.create({ data: { tenantId, orderId, result: 'PASS', positions: [], actorId: requestContext.actorId() } });
         await this.orders.transition(tx, orderId, 'QC_PASSED', 'qc-pass');
         await this.bus.publish(tx, { type: 'QcPassed', subjectType: SUBJECT.order, subjectId: orderId, payload: { orderId, orderNo: order.orderNo } });
@@ -217,5 +321,13 @@ export class ProductionService {
 
   qcRecords(orderId: string) {
     return this.prisma.qcRecord.findMany({ where: { orderId }, orderBy: { createdAt: 'asc' } });
+  }
+
+  qcRecordsFor(orderIds: string[]) {
+    return this.prisma.qcRecord.findMany({ where: { orderId: { in: orderIds } }, orderBy: { createdAt: 'asc' } });
+  }
+
+  jobCardsByIds(ids: string[]) {
+    return this.prisma.jobCard.findMany({ where: { id: { in: ids } }, select: { id: true, jobCardNo: true, createdAt: true } });
   }
 }

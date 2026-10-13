@@ -5,7 +5,7 @@ import { PrismaService } from '../../platform/database/prisma.service';
 import { NonRetryableError, Problem } from '../../platform/http/problem';
 import { DeliveredEvent, EventBus } from '../integration-hub/event-bus.service';
 import { FileService } from '../file-storage/file.service';
-import { mapRow, MappingProfile, parseCsv, toCsv } from './csv';
+import { mapRow, MappingProfile, parseCsv, templateCsv, toCsv } from './csv';
 
 export interface ImportRowContext {
   jobId: string;
@@ -56,6 +56,8 @@ export class ImportService implements OnModuleInit {
     if (raw.length === 0) throw Problem.badRequest('The file has no data rows', 'csv-empty');
     if (raw.length > 5000) throw Problem.badRequest('At most 5000 rows per file', 'csv-too-large');
     const mapping = profile.mapping as unknown as MappingProfile;
+    const needs = (mapping.requiredContext ?? []).filter((k) => !input.context?.[k]);
+    if (needs.length) throw Problem.badRequest(`Profile ${profile.code} needs ${needs.join(', ')} with the upload`, 'context-required');
     const missing = Object.values(mapping.columns).filter((c) => c.required && !(c.from in raw[0])).map((c) => c.from);
     if (missing.length) throw Problem.badRequest(`Missing column(s) for profile ${profile.code}: ${missing.join(', ')}`, 'csv-columns');
 
@@ -92,10 +94,34 @@ export class ImportService implements OnModuleInit {
     });
   }
 
+  /** The profile's template CSV (headers and an example row). */
+  async template(profileCode: string) {
+    const profile = await this.prisma.importProfile.findUnique({ where: { tenantId_code: { tenantId: requestContext.tenantId(), code: profileCode } } });
+    if (!profile) throw Problem.notFound('Import profile');
+    return { filename: `${profile.code.toLowerCase()}-template.csv`, csv: templateCsv(profile.mapping as unknown as MappingProfile) };
+  }
+
   async job(id: string) {
     const job = await this.prisma.importJob.findFirst({ where: { id, tenantId: requestContext.tenantId() } });
     if (!job) throw Problem.notFound('Import job');
     return job;
+  }
+
+  /** Jobs of the given target types, newest first, with the profile's context (e.g. which OEM sent the file). */
+  async jobs(filter: { targetTypes: string[]; from?: Date; to?: Date }) {
+    const tenantId = requestContext.tenantId();
+    const [jobs, profiles] = await Promise.all([
+      this.prisma.importJob.findMany({
+        where: { tenantId, targetType: { in: filter.targetTypes }, ...(filter.from || filter.to ? { createdAt: { gte: filter.from, lte: filter.to } } : {}) },
+        orderBy: { createdAt: 'desc' },
+        take: 5000,
+      }),
+      this.prisma.importProfile.findMany({ where: { tenantId }, select: { code: true, name: true, mapping: true } }),
+    ]);
+    return jobs.map((j) => {
+      const p = profiles.find((x) => x.code === j.profileCode);
+      return { ...j, profileName: p?.name ?? j.profileCode, context: ((p?.mapping as unknown as MappingProfile | undefined)?.context ?? {}) as Record<string, string> };
+    });
   }
 
   rows(jobId: string, status?: string) {

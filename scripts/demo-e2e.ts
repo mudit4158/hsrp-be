@@ -7,6 +7,7 @@
 import { createHmac, randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { plateRenderer, wrongPlate } from '../sim/core/plate-image';
 
 const rootEnv = path.resolve(__dirname, '../.env');
 if (!process.env.SEED_PASSWORD && fs.existsSync(rootEnv)) process.loadEnvFile(rootEnv);
@@ -124,7 +125,27 @@ async function stationIssue(orderIds: string[], dealerId: string, stationId: str
   return jc;
 }
 
+// Plate photos for the OCR step (D45): rendered in a headless browser so the real OCR can read them.
+let renderer: Awaited<ReturnType<typeof plateRenderer>> | null = null;
+async function plateJpeg(text: string, caption: string) {
+  renderer ??= await plateRenderer();
+  return renderer.render(text, caption);
+}
+
+/** Station photographs the embossed plates; `wrong` positions show another number. Returns the OCR checks. */
+async function platePhotos(orderId: string, user = 'station.kol', wrong: string[] = []) {
+  const d = await ok('GET', `/api/v1/orders/${orderId}/detail`, as('admin'));
+  const fd = new FormData();
+  for (const a of (d.allocations as Json[]).filter((x) => x.status === 'ACTIVE')) {
+    const text = wrong.includes(a.position) ? wrongPlate(d.order.regnNo) : d.order.regnNo;
+    fd.set(a.position === 'FRONT' ? 'front' : 'rear', new Blob([await plateJpeg(text, `embossed ${a.position} ${a.laserCode}`)], { type: 'image/jpeg' }), `${a.position.toLowerCase()}.jpg`);
+  }
+  return (await ok('POST', `/api/v1/station/qc/${orderId}/plate-photos`, { ...as(user), form: fd })).checks as Json[];
+}
+
 async function qcPassAndSticker(orderId: string, user = 'station.kol') {
+  const checks = await platePhotos(orderId, user);
+  assert(checks.length > 0 && checks.every((c) => c.result === 'PASS'), `plate photo OCR should pass: ${JSON.stringify(checks.map((c) => [c.position, c.readText, c.result]))}`);
   await ok('POST', `/api/v1/station/qc/${orderId}`, { ...as(user), body: { result: 'PASS' } });
   const o = await order(orderId);
   if (o.status === 'QC_PASSED') {
@@ -149,7 +170,7 @@ async function decideApprovalFor(subjectId: string, type: string, decision: 'APP
   return ok('POST', `/api/v1/approvals/${a.id}/decision`, { ...as(user), body: { decision, remarks } });
 }
 
-async function fitment(orderId: string, user: string, idem = randomUUID()) {
+async function fitment(orderId: string, user: string, idem = randomUUID(), wrong: string[] = []) {
   const o = await order(orderId, user);
   const found: Json[] = await ok('GET', `/api/v1/fitments/search?regnNo=${o.regnNo}`, as(user));
   const hit = found.find((x) => x.order.id === orderId);
@@ -158,8 +179,10 @@ async function fitment(orderId: string, user: string, idem = randomUUID()) {
   fd.set('orderId', orderId);
   for (const a of hit.allocations) fd.set(a.position === 'FRONT' ? 'frontLaserCode' : 'rearLaserCode', a.laserCode);
   fd.set('fittedAt', new Date().toISOString());
-  fd.set('front', new Blob([PNG], { type: 'image/png' }), 'front.png');
-  fd.set('rear', new Blob([PNG], { type: 'image/png' }), 'rear.png');
+  for (const a of hit.allocations as Json[]) {
+    const text = wrong.includes(a.position) ? wrongPlate(o.regnNo) : o.regnNo;
+    fd.set(a.position === 'FRONT' ? 'front' : 'rear', new Blob([await plateJpeg(text, `fitted ${a.position}`)], { type: 'image/jpeg' }), `${a.position.toLowerCase()}.jpg`);
+  }
   return { res: await call('POST', '/api/v1/fitments', { ...as(user), idem, form: fd }), idem, fd };
 }
 
@@ -245,8 +268,92 @@ async function main() {
     assert(report.status === 200 && /Chassis No is required/.test(report.text) && /Unknown dealer/.test(report.text), 'error report lists the bad rows');
     const refs = done.rows.filter((r: Json) => r.status === 'OK').map((r: Json) => r.resultRef);
     const states = await Promise.all(refs.map((id: string) => waitStatus(id, ['CONFIRMED', 'REJECTED'])));
-    assert(states.some((s) => s.status === 'REJECTED' && /VAHAN/.test(s.rejectionReason)), 'the row not in VAHAN is rejected by validation');
-    return `${done.job.totalRows} rows: ${done.job.okRows} imported (${states.filter((s) => s.status === 'CONFIRMED').length} confirmed, ${states.filter((s) => s.status === 'REJECTED').length} rejected by VAHAN), ${done.job.errorRows} in the error report`;
+    // The made-up vehicle is in neither Kranti's vehicle data nor VAHAN; the OEM data step (D42) runs first.
+    assert(states.some((s) => s.status === 'REJECTED' && /vehicle data|VAHAN/.test(s.rejectionReason)), 'the unknown vehicle is rejected by validation');
+    return `${done.job.totalRows} rows: ${done.job.okRows} imported (${states.filter((s) => s.status === 'CONFIRMED').length} confirmed, ${states.filter((s) => s.status === 'REJECTED').length} rejected by validation), ${done.job.errorRows} in the error report`;
+  });
+
+  await flow('M. OEM vehicle data and new-vehicle orders', async () => {
+    const sheet = await ok('POST', '/api/v1/simulator/new-vehicle-demo', { ...as('admin'), body: {} });
+    const job = await ok('POST', '/api/v1/simulator/new-vehicle-demo/upload', { ...as('admin'), body: {} });
+    const done = await waitFor('vehicle data import', () => ok('GET', `/api/v1/imports/${job.id}`, as('ops')), (j: Json) => j.job.status === 'DONE');
+    const inFile = sheet.vehicles.filter((v: Json) => v.inOemFile).length;
+    assert(done.job.okRows === inFile && done.job.errorRows === 2, `expected ${inFile} vehicles and 2 refused rows, got ok=${done.job.okRows} error=${done.job.errorRows}`);
+    const report = await call('GET', `/api/v1/imports/${job.id}/error-report`, as('ops'));
+    assert(/Chassis No is required/.test(report.text) && /not a Kranti/.test(report.text), 'error report lists the refused rows');
+    const place = async (role: string) => {
+      const v = sheet.vehicles.find((x: Json) => x.role === role);
+      const r = await ok('POST', '/api/v1/orders', { ...as('dealer.wb01'), idem: randomUUID(), body: { regnNo: v.regnNo, chassisNo: v.chassisNo, engineNo: v.orderEngineNo, oemCode: 'KRANTI', mobile: '9000099001' } });
+      return waitStatus(r.id, ['CONFIRMED', 'REJECTED'], 'dealer.wb01');
+    };
+    const [valid, missing, mismatch] = [await place('VALID'), await place('NOT_IN_OEM_DATA'), await place('ENGINE_MISMATCH')];
+    assert(valid.status === 'CONFIRMED', `valid order ${valid.orderNo} is ${valid.status}: ${valid.rejectionReason}`);
+    assert(missing.status === 'REJECTED' && /not in .*vehicle data/.test(missing.rejectionReason), `chassis not on file → ${missing.status} ${missing.rejectionReason}`);
+    assert(mismatch.status === 'REJECTED' && /does not match/.test(mismatch.rejectionReason), `engine mismatch → ${mismatch.status} ${mismatch.rejectionReason}`);
+    await ok('POST', `/api/v1/orders/${valid.id}/cancel`, { ...as('ops'), body: { reason: 'demo:e2e clean-up' } });
+    return `${done.job.okRows} vehicles on file, 2 rows refused; ${valid.orderNo} CONFIRMED, ${missing.orderNo} and ${mismatch.orderNo} REJECTED at the OEM data step`;
+  });
+
+  await flow('N. Postpaid billing (OEM × dealer bill-to)', async () => {
+    const setup: Json[] = await ok('GET', '/api/v1/billing/setup', as('ops'));
+    const zenmo = setup.find((x) => x.oemCode === 'ZENMO');
+    assert(zenmo?.paymentMode === 'POSTPAID', `Zenmo should be postpaid, is ${zenmo?.paymentMode}`);
+    const before = zenmo.dealers.find((d: Json) => d.dealerCode === 'WB01')?.billTo;
+    // Bill WB01's Zenmo orders to the dealer for this flow; restored at the end.
+    await ok('PUT', '/api/v1/billing/oems/ZENMO/dealers/WB01', { ...as('ops'), body: { billTo: 'DEALER' } });
+    try {
+      const { order: o } = await dealerOrder('dealer.wb01', 'demo-new', 'WB', { oemCode: 'ZENMO' });
+      assert(!o.walletHoldId, 'a postpaid order has no wallet hold');
+      const pending = await waitFor('postpaid charge', () => ok('GET', '/api/v1/billing/charges?oemCode=ZENMO', as('ops')), (l: Json[]) => l.some((c) => c.orderId === o.id));
+      const charge = pending.find((c: Json) => c.orderId === o.id);
+      assert(charge.status === 'PENDING' && charge.billToType === 'DEALER' && charge.billToId === WB01.id, `charge ${JSON.stringify(charge)}`);
+      await stationIssue([o.id], WB01.id, KOL1.id);
+      await qcPassAndSticker(o.id);
+      await challanFor([o.id], WB01.id, KOL1.id);
+      await waitFor('charge billable after dispatch', () => ok('GET', '/api/v1/billing/charges?status=BILLABLE&oemCode=ZENMO', as('ops')), (l: Json[]) => l.some((c) => c.orderId === o.id));
+      const run = await ok('POST', '/api/v1/billing/run', { ...as('ops'), body: { oemCode: 'ZENMO' } });
+      const bill = (run.bills as Json[]).find((b) => b.billToType === 'DEALER' && b.billToId === WB01.id);
+      assert(bill, 'a bill to dealer WB01');
+      const detail = await ok('GET', `/api/v1/billing/bills/${bill.id}`, as('ops'));
+      assert(detail.lines.some((l: Json) => l.orderId === o.id) && detail.amountPaise === detail.lines.reduce((n: number, l: Json) => n + l.amountPaise, 0), 'bill lines and total');
+      const pdf = await call('GET', `/api/v1/billing/bills/${bill.id}/pdf`, as('ops'));
+      assert(pdf.status === 200 && pdf.text.startsWith('%PDF'), 'bill PDF');
+      const mail = await waitFor('bill e-mail', () => ok('GET', '/api/v1/simulator/messages?channel=EMAIL', as('admin')), (m: Json[]) => m.some((x) => x.body.includes(bill.billNo)));
+      const again = await call('POST', '/api/v1/billing/run', { ...as('dealer.wb01'), body: { oemCode: 'ZENMO' } });
+      assert(again.status === 403, 'dealers cannot run billing');
+      const kranti = await call('POST', '/api/v1/billing/run', { ...as('ops'), body: { oemCode: 'KRANTI' } });
+      assert(kranti.status === 422, 'a prepaid OEM is not billed');
+      return `${o.orderNo} confirmed without a wallet hold → dispatched → bill ${bill.billNo} to WB01 (₹${(bill.amountPaise / 100).toFixed(2)}, ${bill.lineCount} order(s)), PDF and e-mail to ${mail.find((x: Json) => x.body.includes(bill.billNo)).to}; prepaid Kranti refused`;
+    } finally {
+      await ok('PUT', '/api/v1/billing/oems/ZENMO/dealers/WB01', { ...as('ops'), body: { billTo: before ?? 'OEM' } });
+    }
+  });
+
+  await flow('Q. OEM bulk upload (standard template)', async () => {
+    const tpl = await call('GET', '/api/v1/imports/profiles/OEM_VEHICLES_STANDARD/template', as('ops'));
+    assert(tpl.status === 200 && tpl.text.startsWith('Chassis No,Engine No,Model'), 'template CSV');
+    const pool: Json[] = await ok('GET', '/api/v1/simulator/vahan-vehicles?scenario=oem-zenmo-sample&state=WB', as('admin'));
+    const picks = pool.slice(-2);
+    const csv = [
+      'Chassis No,Engine No,Model,Category,Dealer Code,Invoice No,Invoice Date',
+      ...picks.map((v, i) => `${v.chassisNo},${v.engineNo},Zenmo Aura (fictional),${v.vchCatg},WB01,ZEN-BULK-${Date.now()}-${i},01-10-2026`),
+      `MZBULKBADDEALER01,EZBULK0001,Zenmo Aura (fictional),LMV,WB03,ZEN-BULK-BAD,01-10-2026`,
+    ].join('\n');
+    const form = (withOem: boolean) => {
+      const fd = new FormData();
+      fd.set('file', new Blob([csv], { type: 'text/csv' }), 'zenmo-vehicles.csv');
+      fd.set('profileCode', 'OEM_VEHICLES_STANDARD');
+      if (withOem) fd.set('context', JSON.stringify({ oemCode: 'ZENMO' }));
+      return fd;
+    };
+    const noOem = await call('POST', '/api/v1/imports', { ...as('ops'), form: form(false) });
+    assert(noOem.status === 400, 'the standard template needs the OEM');
+    const job = await ok('POST', '/api/v1/imports', { ...as('ops'), form: form(true) });
+    const done = await waitFor('bulk upload', () => ok('GET', `/api/v1/imports/${job.id}`, as('ops')), (j: Json) => j.job.status === 'DONE');
+    assert(done.job.okRows === 2 && done.job.errorRows === 1, `expected 2 loaded and 1 refused, got ${done.job.okRows}/${done.job.errorRows}`);
+    const onFile = await ok('GET', `/api/v1/oem-vehicles?oemCode=ZENMO&q=${picks[0].chassisNo}`, as('ops'));
+    assert(onFile.items.length === 1 && onFile.items[0].dealerCode === 'WB01', 'vehicle on file for Zenmo');
+    return `template downloaded; upload without an OEM refused; Zenmo file: ${done.job.okRows} vehicles loaded, ${done.job.errorRows} refused (dealer not mapped to Zenmo)`;
   });
 
   await flow('D. Customer order (portal)', async () => {
@@ -299,6 +406,13 @@ async function main() {
     assert(wrong.status === 403 || wrong.status === 409, 'another station cannot act on this order');
     const jc = await stationIssue([o.id], WB01.id, KOL1.id);
     await waitStatus(o.id, ['ISSUED']);
+    // OCR after embossing (D45): no photo or a wrong number blocks QC; the right number lets it pass.
+    const early = await call('POST', `/api/v1/station/qc/${o.id}`, { ...as('station.kol'), body: { result: 'PASS' } });
+    assert(early.status === 409 && String(early.body?.type).endsWith('/plate-ocr-required'), `QC pass without plate photos → ${early.status} ${early.body?.type}`);
+    const bad = await platePhotos(o.id, 'station.kol', ['FRONT']);
+    assert(bad.find((c) => c.position === 'FRONT')?.result === 'FAIL', `a plate showing another number must fail OCR: ${JSON.stringify(bad.map((c) => [c.position, c.readText, c.result]))}`);
+    const stillBlocked = await call('POST', `/api/v1/station/qc/${o.id}`, { ...as('station.kol'), body: { result: 'PASS' } });
+    assert(stillBlocked.status === 409, 'QC pass stays blocked while a plate photo fails OCR');
     await qcPassAndSticker(o.id);
     const o2 = await order(o.id);
     if (o2.stickerRequired) {
@@ -310,7 +424,7 @@ async function main() {
     const ch = await challanFor([o.id], WB01.id, KOL1.id);
     await waitStatus(o.id, ['DISPATCHED']);
     ctx.challanA = ch;
-    return `job card ${jc.jobCardNo}, QC passed, sticker ${o2.stickerRequired ? 'printed + reprinted' : 'not required (skipped)'}, challan ${ch.challanNo}`;
+    return `job card ${jc.jobCardNo}, plate photo OCR (wrong number refused, right number passed), QC passed, sticker ${o2.stickerRequired ? 'printed + reprinted' : 'not required (skipped)'}, challan ${ch.challanNo}`;
   });
 
   await flow('F. Dealer inward', async () => {
@@ -329,6 +443,9 @@ async function main() {
 
   await flow('G. Fitment (with photos) → VAHAN → completed', async () => {
     const o = ctx.A;
+    // OCR at fitment (D45): a photo of another number refuses the fitment.
+    const refused = await fitment(o.id, 'dealer.wb01', randomUUID(), ['FRONT']);
+    assert(refused.res.status === 422 && String(refused.res.body?.type).endsWith('/plate-ocr-mismatch'), `fitment with a wrong plate photo → ${refused.res.status} ${refused.res.body?.type}`);
     const { res, idem, fd } = await fitment(o.id, 'dealer.wb01');
     assert(res.status === 201, `fitment → ${res.status} ${JSON.stringify(res.body)}`);
     const replay = await call('POST', '/api/v1/fitments', { ...as('dealer.wb01'), idem, form: fd });
@@ -337,7 +454,7 @@ async function main() {
     assert(dup.res.status !== 201, 'fitment can be recorded once per order');
     await waitStatus(o.id, ['COMPLETED']);
     const sms = await waitFor('completion SMS', () => ok('GET', '/api/v1/simulator/messages?to=9000099001', as('admin')), (m: Json[]) => m.some((x) => x.body.includes(o.regnNo) && /fitted/.test(x.body)));
-    return `${o.orderNo} FITTED → VAHAN post OK → COMPLETED; ${sms.length} SMS to the owner`;
+    return `${o.orderNo} wrong plate photo refused by OCR, then FITTED → VAHAN post OK → COMPLETED; ${sms.length} SMS to the owner`;
   });
 
   await flow('H. Rejection and re-issue', async () => {
@@ -474,13 +591,20 @@ async function main() {
     const reports: Json[] = await ok('GET', '/api/v1/reports', as('ops'));
     const csv = await call('GET', '/api/v1/reports/orders-register/csv', as('ops'));
     assert(csv.status === 200 && csv.text.startsWith('Order no,'), 'CSV export');
-    return `dashboard ok; timeline ${path}; ${reports.length} reports; orders CSV ${csv.text.split('\r\n').length - 2} rows`;
+    const rows = async (code: string, q = '') => (await ok('GET', `/api/v1/reports/${code}${q}`, as('ops'))).rows as Json[];
+    const no = `?orderNo=${ctx.A.orderNo}`;
+    const [hist, checks, lasers, oem] = [await rows('order-history', no), await rows('order-validations', no), await rows('laser-code-audit', no), await rows('oem-history')];
+    assert(hist.at(-1)?.to === 'COMPLETED' && checks.some((c) => c.step === 'VAHAN' && c.outcome === 'PASS'), 'order history and validation reports');
+    assert(lasers.length >= 2 && lasers.every((l) => l.fittedAt && l.challanNo && l.jobCardNo), 'laser code audit follows each plate to fitment');
+    assert(oem.some((x) => x.event === 'Vehicle data file received') && oem.some((x) => /checked against OEM vehicle data/.test(String(x.event))), 'OEM history');
+    return `dashboard ok; timeline ${path}; ${reports.length} reports; orders CSV ${csv.text.split('\r\n').length - 2} rows; ${hist.length} status changes, ${lasers.length} laser codes and ${oem.length} OEM events in the audit reports`;
   });
 
   // ------------------------------------------------------------------------------------------ summary
   const failed = results.filter((r) => !r.ok);
   const skipped = results.filter((r) => r.skipped).length;
   console.log(`\n${results.length - failed.length - skipped}/${results.length - skipped} flows passed (${skipped} skipped) in ${(results.reduce((s, r) => s + r.ms, 0) / 1000).toFixed(1)} s`);
+  await renderer?.close();
   if (failed.length) process.exit(1);
 }
 

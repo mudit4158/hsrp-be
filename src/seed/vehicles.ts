@@ -66,7 +66,10 @@ const POOLS: Array<[Pool, number]> = [
   ['bad-category', 1],
 ];
 
-const ALNUM = 'ABCDEFGHJKLMNPRSTUVWXYZ0123456789';
+/** Pools of vehicles registered after the new-vehicle cut-off. */
+export const NEW_POOLS: readonly Pool[] = ['seed-new', 'demo-new', 'oem-zenmo-sample', 'oem-kranti-sample', 'garbled-post', 'bad-category'];
+
+export const ALNUM = 'ABCDEFGHJKLMNPRSTUVWXYZ0123456789';
 const OTHER_MAKERS = ['DEMO MOTORS (FICTIONAL)', 'SAMPLE CYCLES (FICTIONAL)', 'TEST TRUCKS (FICTIONAL)'];
 
 export function generateVehicles(): SeedVehicle[] {
@@ -79,7 +82,7 @@ export function generateVehicles(): SeedVehicle[] {
   for (const state of ['WB', 'OD']) {
     for (const [pool, count] of POOLS) {
       for (let i = 0; i < count; i++) {
-        const isNew = ['seed-new', 'demo-new', 'oem-zenmo-sample', 'oem-kranti-sample', 'garbled-post', 'bad-category'].includes(pool);
+        const isNew = NEW_POOLS.includes(pool);
         const office = r.int(1, 30);
         let regnNo: string;
         do regnNo = `${state}${String(office).padStart(2, '0')}${r.pick(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K'])}${r.pick(['A', 'B', 'C', 'D', 'E', 'M', 'N', 'P', 'R', 'S'])}${String(r.int(1, 9999)).padStart(4, '0')}`;

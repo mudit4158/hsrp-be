@@ -21,11 +21,24 @@ export interface ColumnMapping {
   required?: boolean;
   transform?: 'upper' | 'lower' | 'trim' | 'digits' | 'date-dmy';
   default?: string;
+  /** Sample value for the downloadable template. */
+  example?: string;
 }
 
 export interface MappingProfile {
   columns: Record<string, ColumnMapping>;
   context?: Record<string, string>;
+  /** Context keys the uploader must supply (e.g. which OEM a standard-template file belongs to). */
+  requiredContext?: string[];
+  /** Template column order (target keys). Needed because PostgreSQL jsonb does not keep object key order. */
+  columnOrder?: string[];
+}
+
+/** A CSV with the profile's column headers and one example row: the template a source fills in. */
+export function templateCsv(profile: MappingProfile): string {
+  const keys = profile.columnOrder ?? Object.keys(profile.columns);
+  const cols = keys.map((k) => profile.columns[k]).filter(Boolean);
+  return toCsv([Object.fromEntries(cols.map((c) => [c.from, c.example ?? '']))], cols.map((c) => ({ key: c.from, label: c.from })));
 }
 
 /** Maps one source row to target fields with the profile; returns errors instead of throwing. */

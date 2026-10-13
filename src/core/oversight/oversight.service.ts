@@ -3,6 +3,9 @@ import { Problem } from '../../platform/http/problem';
 import { ApprovalsService } from '../../utility/approvals/approvals.service';
 import { AuditService } from '../../utility/audit/audit.service';
 import { FileService } from '../../utility/file-storage/file.service';
+import { IdentityService } from '../../utility/identity/identity.service';
+import { ImportService } from '../../utility/import-export/import.service';
+import { CallLogService } from '../../utility/integration-hub/call-log.service';
 import { EventBus } from '../../utility/integration-hub/event-bus.service';
 import { PaymentsService } from '../../utility/payments/payments.service';
 import { TicketsService } from '../../utility/tickets/tickets.service';
@@ -13,6 +16,8 @@ import { FitmentService } from '../fitment/fitment.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { MastersService } from '../masters/masters.service';
 import { ScopeService } from '../masters/scope.service';
+import { BillingService } from '../billing/billing.service';
+import { OemVehicleDataService } from '../order-intake/oem-vehicle-data.service';
 import { OrderService } from '../order-intake/order.service';
 import { ProductionService } from '../production/production.service';
 import { RejectionService } from '../rejection/rejection.module';
@@ -38,6 +43,11 @@ export class OversightService {
     readonly files: FileService,
     readonly audit: AuditService,
     readonly bus: EventBus,
+    readonly oemData: OemVehicleDataService,
+    readonly imports: ImportService,
+    readonly calls: CallLogService,
+    readonly identity: IdentityService,
+    readonly billing: BillingService,
   ) {}
 
   async dashboard() {
@@ -87,6 +97,7 @@ export class OversightService {
       this.files.listFor(SUBJECT.order, id),
     ]);
     const rejectionApprovals = (await Promise.all(rejections.map((r) => this.approvals.forSubject(SUBJECT.rejection, r.id)))).flat();
+    const [embossChecks, fitmentChecks, billing] = await Promise.all([this.production.photoChecks(id), this.fitment.photoChecks([id]), this.billing.forOrder(id)]);
     const challans = await this.dispatch.challansByIds([...new Set(lines.map((l) => l.challanId))]);
     const dealer = order.dealerId ? await this.masters.dealer(order.dealerId) : null;
     const station = order.stationId ? await this.masters.station(order.stationId) : null;
@@ -101,7 +112,14 @@ export class OversightService {
       challanLines: lines.map((l) => ({ ...l, challanNo: challans.find((c) => c.id === l.challanId)?.challanNo, challanStatus: challans.find((c) => c.id === l.challanId)?.status })),
       fitment: fitment && { ...fitment, frontPhotoUrl: link(fitment.frontPhotoId), rearPhotoUrl: link(fitment.rearPhotoId), chassisPhotoUrl: link(fitment.chassisPhotoId) },
       qc,
+      // OCR of plate photos (D45): after embossing (station) and at fitment (dealer), refused attempts included.
+      plateChecks: [
+        ...embossChecks.map((c) => ({ ...c, stage: 'EMBOSSING', photoUrl: link(c.fileId) })),
+        ...fitmentChecks.map((c) => ({ ...c, stage: 'FITMENT', laserCode: null, photoUrl: link(c.fileId) })),
+      ].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()),
       stickerPrints: prints,
+      // Postpaid OEM orders (D46): the charge and the bill that took it.
+      billing,
       rejections,
       approvals: [...approvals, ...rejectionApprovals],
       payments,

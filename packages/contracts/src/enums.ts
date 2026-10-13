@@ -47,7 +47,7 @@ export type PlateStatus = (typeof PLATE_STATUSES)[number];
 
 export const INWARD_DECISIONS = ['ACCEPT', 'REJECT'] as const;
 
-export const VALIDATION_STEPS = ['oem-catalogue-check', 'vahan-check', 'state-eligibility-rules'] as const;
+export const VALIDATION_STEPS = ['oem-catalogue-check', 'oem-vehicle-data', 'vahan-check', 'state-eligibility-rules'] as const;
 export type ValidationStepCode = (typeof VALIDATION_STEPS)[number];
 
 export const VAHAN_MODES = ['normal', 'slow', 'down', 'not-found'] as const;

@@ -5,6 +5,7 @@ import { createZodDto } from 'nestjs-zod';
 import { requestContext } from '../../platform/context/request-context';
 import { PrismaService } from '../../platform/database/prisma.service';
 import { ApiClientAuth, Idempotent, RequirePermission } from '../../platform/http/decorators';
+import { FilteredPageQueryDto } from '../../platform/http/pagination';
 import { Problem } from '../../platform/http/problem';
 import { Scheduler } from '../../platform/worker/scheduler.service';
 import { MastersModule } from '../masters/masters.module';
@@ -12,6 +13,7 @@ import { MastersService } from '../masters/masters.service';
 import { ScopeService } from '../masters/scope.service';
 import { PricingModule } from '../pricing/pricing.module';
 import { OemIntakeService } from './oem-intake.service';
+import { OemVehicleDataService } from './oem-vehicle-data.service';
 import { OrderFlowService } from './order-flow.service';
 import { OrderService } from './order.service';
 import { VehicleCheckService } from './vehicle-check.service';
@@ -120,11 +122,24 @@ export class OemController {
   }
 }
 
+/** OEM vehicle data loaded from the OEMs' vehicle data files (staff only). */
+@ApiTags('oem')
+@Controller('oem-vehicles')
+export class OemVehiclesController {
+  constructor(private readonly data: OemVehicleDataService) {}
+
+  @Get()
+  @RequirePermission('masters.read')
+  list(@Query() q: FilteredPageQueryDto) {
+    return this.data.list({ page: q.page, pageSize: q.pageSize, oemCode: q.oemCode, q: q.q, importJobId: q.importJobId });
+  }
+}
+
 @Module({
   imports: [MastersModule, PricingModule],
-  controllers: [OrdersController, OemController],
-  providers: [OrderService, OrderFlowService, VehicleCheckService, OemIntakeService],
-  exports: [OrderService, OrderFlowService, VehicleCheckService],
+  controllers: [OrdersController, OemController, OemVehiclesController],
+  providers: [OrderService, OrderFlowService, VehicleCheckService, OemIntakeService, OemVehicleDataService],
+  exports: [OrderService, OrderFlowService, VehicleCheckService, OemVehicleDataService],
 })
 export class OrderIntakeModule implements OnModuleInit {
   constructor(
