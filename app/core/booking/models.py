@@ -6,7 +6,7 @@ edit by hand after cut-over. The schema itself is created by the Alembic migrati
 from datetime import datetime  # noqa: F401
 from typing import Any  # noqa: F401
 
-from sqlalchemy import Boolean, DateTime, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401
+from sqlalchemy import Boolean, DateTime, FetchedValue, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB  # noqa: F401
 from sqlalchemy.orm import Mapped, mapped_column
 

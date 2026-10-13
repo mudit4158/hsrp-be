@@ -6,7 +6,7 @@ edit by hand after cut-over. The schema itself is created by the Alembic migrati
 from datetime import datetime  # noqa: F401
 from typing import Any  # noqa: F401
 
-from sqlalchemy import Boolean, DateTime, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401
+from sqlalchemy import Boolean, DateTime, FetchedValue, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB  # noqa: F401
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -49,7 +49,7 @@ class ExtraCharge(Base):
     code: Mapped[str] = mapped_column("code", Text)
     name: Mapped[str] = mapped_column("name", Text)
     amount_paise: Mapped[int] = mapped_column("amount_paise", Integer)
-    conditions: Mapped[Any] = mapped_column("conditions", JSONB)
+    conditions: Mapped[Any] = mapped_column("conditions", JSONB(none_as_null=True))
     effective_from: Mapped[datetime] = mapped_column("effective_from", DateTime)
     effective_to: Mapped[datetime | None] = mapped_column("effective_to", DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column("created_at", DateTime, default=utcnow)

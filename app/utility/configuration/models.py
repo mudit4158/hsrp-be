@@ -6,7 +6,7 @@ edit by hand after cut-over. The schema itself is created by the Alembic migrati
 from datetime import datetime  # noqa: F401
 from typing import Any  # noqa: F401
 
-from sqlalchemy import Boolean, DateTime, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401
+from sqlalchemy import Boolean, DateTime, FetchedValue, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB  # noqa: F401
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -26,7 +26,7 @@ class ConfigSetting(Base):
     key: Mapped[str] = mapped_column("key", Text)
     scope_type: Mapped[str] = mapped_column("scope_type", Text)
     scope_id: Mapped[str] = mapped_column("scope_id", Text)
-    value: Mapped[Any] = mapped_column("value", JSONB)
+    value: Mapped[Any] = mapped_column("value", JSONB(none_as_null=True))
     effective_from: Mapped[datetime] = mapped_column("effective_from", DateTime, default=utcnow)
     effective_to: Mapped[datetime | None] = mapped_column("effective_to", DateTime, nullable=True)
     created_by: Mapped[str | None] = mapped_column("created_by", Text, nullable=True)

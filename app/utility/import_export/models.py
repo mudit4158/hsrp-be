@@ -6,7 +6,7 @@ edit by hand after cut-over. The schema itself is created by the Alembic migrati
 from datetime import datetime  # noqa: F401
 from typing import Any  # noqa: F401
 
-from sqlalchemy import Boolean, DateTime, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401
+from sqlalchemy import Boolean, DateTime, FetchedValue, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB  # noqa: F401
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -29,7 +29,7 @@ class ImportProfile(Base):
     target_type: Mapped[str] = mapped_column("target_type", Text)
     delimiter: Mapped[str] = mapped_column("delimiter", Text, default=",")
     # { columns: { targetField: { from: "Source Column", required?, transform? } }, context?: {...} }
-    mapping: Mapped[Any] = mapped_column("mapping", JSONB)
+    mapping: Mapped[Any] = mapped_column("mapping", JSONB(none_as_null=True))
     created_at: Mapped[datetime] = mapped_column("created_at", DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column("updated_at", DateTime, default=utcnow, onupdate=utcnow)
 
@@ -62,10 +62,10 @@ class ImportRow(Base):
     tenant_id: Mapped[str] = mapped_column("tenant_id", Text)
     job_id: Mapped[str] = mapped_column("job_id", Text)
     row_no: Mapped[int] = mapped_column("row_no", Integer)
-    raw: Mapped[Any] = mapped_column("raw", JSONB)
-    mapped: Mapped[Any | None] = mapped_column("mapped", JSONB, nullable=True)
+    raw: Mapped[Any] = mapped_column("raw", JSONB(none_as_null=True))
+    mapped: Mapped[Any | None] = mapped_column("mapped", JSONB(none_as_null=True), nullable=True)
     status: Mapped[str] = mapped_column("status", Text, default="PENDING")
-    errors: Mapped[Any | None] = mapped_column("errors", JSONB, nullable=True)
+    errors: Mapped[Any | None] = mapped_column("errors", JSONB(none_as_null=True), nullable=True)
     result_ref: Mapped[str | None] = mapped_column("result_ref", Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column("created_at", DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column("updated_at", DateTime, default=utcnow, onupdate=utcnow)

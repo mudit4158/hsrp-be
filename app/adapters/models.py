@@ -6,7 +6,7 @@ edit by hand after cut-over. The schema itself is created by the Alembic migrati
 from datetime import datetime  # noqa: F401
 from typing import Any  # noqa: F401
 
-from sqlalchemy import Boolean, DateTime, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401
+from sqlalchemy import Boolean, DateTime, FetchedValue, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB  # noqa: F401
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -63,7 +63,7 @@ class MockSetting(Base):
 
     key: Mapped[str] = mapped_column("key", Text, primary_key=True)
     tenant_id: Mapped[str] = mapped_column("tenant_id", Text)
-    value: Mapped[Any] = mapped_column("value", JSONB)
+    value: Mapped[Any] = mapped_column("value", JSONB(none_as_null=True))
     created_at: Mapped[datetime] = mapped_column("created_at", DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column("updated_at", DateTime, default=utcnow, onupdate=utcnow)
 
@@ -80,8 +80,8 @@ class MockPayuTxn(Base):
     amount: Mapped[str] = mapped_column("amount", Text)
     status: Mapped[str] = mapped_column("status", Text, default="initiated")
     mihpayid: Mapped[str | None] = mapped_column("mihpayid", Text, nullable=True)
-    request: Mapped[Any] = mapped_column("request", JSONB)
-    refunds: Mapped[Any | None] = mapped_column("refunds", JSONB, nullable=True)
+    request: Mapped[Any] = mapped_column("request", JSONB(none_as_null=True))
+    refunds: Mapped[Any | None] = mapped_column("refunds", JSONB(none_as_null=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column("created_at", DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column("updated_at", DateTime, default=utcnow, onupdate=utcnow)
 

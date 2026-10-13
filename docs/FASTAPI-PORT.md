@@ -56,7 +56,8 @@ Progress is tracked in `docs/TRACKER.md` (item N-12).
 | Phase | Status | Notes |
 | --- | --- | --- |
 | P0 Scaffold | Done (13 Oct 2026) | Alembic revisions 0001–0005 replay the Prisma migration SQL; `pg_dump -s` of `hsrp_py` equals the Prisma-built `hsrp`. The 75 generated models compare clean against it (pytest `test_models_match_the_migrated_schema`). Health and unknown-route problem bodies match NestJS byte for byte. |
-| P1 Platform | Next | |
+| P1 Platform | Done (13 Oct 2026) | Request pipeline in `ApiRoute` (throttle → auth → idempotency → handler → audit, the NestJS guard/interceptor order), JWT HS256 with the same claims and secret, device binding, HMAC API clients, pagination, outbox event bus and scheduler threads, integration monitor routes. Event-bus Jest spec ported; 21 pytest tests. |
+| P2 Utilities | Next | identity (login, OTP, users), configuration, notification, file storage, payments, wallet, scheduling, documents, import/export, approvals, tickets, reporting |
 
 ## Running the Python API (during the port)
 
@@ -86,5 +87,19 @@ Create the database once with `docker compose exec db psql -U hsrp -d postgres -
   `errors[{path, message}]`; unique violations 409 `duplicate`; unmatched routes 404 `http` "Cannot METHOD path",
   as Express answered.
 - **Transactions**: `get_db().tx()` is one transaction with after-commit hooks (PrismaService `tx()`); services take
-  an optional session and use `db.use(s)` to join the caller's transaction.
+  an optional session and use `db.use(s)` to join the caller's transaction. Serial columns (`seq`) are
+  `server_default=FetchedValue()` and Json columns `JSONB(none_as_null=True)`, so INSERTs behave as Prisma's did.
+- **Routes**: `router(prefix, tags, perms=[...], public=..., api_client=...)` from `app.platform.http.routing`;
+  per-route metadata with the decorators in `app.platform.http.decorators` (`@public`, `@require(...)`,
+  `@idempotent`, `@api_client_auth`, `@throttle(limit, ttl_s)`) placed under the router decorator. A route's own
+  value overrides the router's (NestJS `getAllAndOverride`). POST answers 201 unless the route passes
+  `status_code=200` (NestJS `@HttpCode`). Audit actions and idempotency scopes use the Express-style path
+  (`/api/v1/orders/:id`), as NestJS wrote them.
+- **Services**: built once in `app/container.py` (the composition root). Modules reach them through
+  `app.platform.registry.services()`, never by importing the container (it imports every layer, which would break
+  the import-linter contracts).
+- **Lists**: `q: Page = Depends(page_query)`, then `paginate(s, stmt, q)`; other query parameters are in
+  `q.get(name)` (FilteredPageQuery).
+- **Worker**: the event bus and the scheduler run as daemon threads started in the app lifespan when
+  `WORKER_ENABLED=true`; subscribers and jobs are plain functions run as the system actor.
 

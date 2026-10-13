@@ -6,7 +6,7 @@ edit by hand after cut-over. The schema itself is created by the Alembic migrati
 from datetime import datetime  # noqa: F401
 from typing import Any  # noqa: F401
 
-from sqlalchemy import Boolean, DateTime, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401
+from sqlalchemy import Boolean, DateTime, FetchedValue, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB  # noqa: F401
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -32,8 +32,8 @@ class AuditLog(Base):
     action: Mapped[str] = mapped_column("action", Text)
     subject_type: Mapped[str | None] = mapped_column("subject_type", Text, nullable=True)
     subject_id: Mapped[str | None] = mapped_column("subject_id", Text, nullable=True)
-    before: Mapped[Any | None] = mapped_column("before", JSONB, nullable=True)
-    after: Mapped[Any | None] = mapped_column("after", JSONB, nullable=True)
+    before: Mapped[Any | None] = mapped_column("before", JSONB(none_as_null=True), nullable=True)
+    after: Mapped[Any | None] = mapped_column("after", JSONB(none_as_null=True), nullable=True)
     device: Mapped[str | None] = mapped_column("device", Text, nullable=True)
     ip: Mapped[str | None] = mapped_column("ip", Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column("created_at", DateTime, default=utcnow)

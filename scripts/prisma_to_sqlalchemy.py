@@ -20,7 +20,8 @@ TYPES = {
     "Float": ("float", "Float"),
     "Boolean": ("bool", "Boolean"),
     "DateTime": ("datetime", "DateTime"),
-    "Json": ("Any", "JSONB"),
+    # none_as_null: Python None is SQL NULL, as Prisma wrote an omitted Json field (not the JSON value null).
+    "Json": ("Any", "JSONB(none_as_null=True)"),
     "Bytes": ("bytes", "LargeBinary"),
 }
 
@@ -112,7 +113,8 @@ def render_field(f) -> str:
     elif d == "now()":
         args.append("default=utcnow")
     elif d == "autoincrement()":
-        args.append("autoincrement=True")
+        # A serial column: leave it out of INSERTs and let the database number it.
+        args.append("server_default=FetchedValue()")
     elif d in ("true", "false"):
         args.append(f"default={d.capitalize()}")
     elif d is not None and re.fullmatch(r"-?\d+(\.\d+)?", d):
@@ -167,7 +169,7 @@ def main():
             "from datetime import datetime  # noqa: F401",
             "from typing import Any  # noqa: F401",
             "",
-            "from sqlalchemy import Boolean, DateTime, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401",
+            "from sqlalchemy import Boolean, DateTime, FetchedValue, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401",
             "from sqlalchemy.dialects.postgresql import ARRAY, JSONB  # noqa: F401",
             "from sqlalchemy.orm import Mapped, mapped_column",
             "",

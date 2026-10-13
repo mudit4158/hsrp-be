@@ -6,7 +6,7 @@ from app.platform.config import env
 from app.platform.db.session import get_db
 from app.platform.http.routing import router as api_router
 
-router = api_router("/health", ["platform"])
+router = api_router("/health", ["platform"], public=True)
 
 
 @router.get("")

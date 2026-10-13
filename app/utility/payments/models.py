@@ -6,7 +6,7 @@ edit by hand after cut-over. The schema itself is created by the Alembic migrati
 from datetime import datetime  # noqa: F401
 from typing import Any  # noqa: F401
 
-from sqlalchemy import Boolean, DateTime, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401
+from sqlalchemy import Boolean, DateTime, FetchedValue, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB  # noqa: F401
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -29,7 +29,7 @@ class Payment(Base):
     amount_paise: Mapped[int] = mapped_column("amount_paise", Integer)
     currency: Mapped[str] = mapped_column("currency", Text, default="INR")
     product_info: Mapped[str] = mapped_column("product_info", Text)
-    payer: Mapped[Any] = mapped_column("payer", JSONB)
+    payer: Mapped[Any] = mapped_column("payer", JSONB(none_as_null=True))
     subject_type: Mapped[str] = mapped_column("subject_type", Text)
     subject_id: Mapped[str] = mapped_column("subject_id", Text)
     status: Mapped[str] = mapped_column("status", Text, default="CREATED")
@@ -53,7 +53,7 @@ class PaymentEvent(Base):
     payment_id: Mapped[str | None] = mapped_column("payment_id", Text, nullable=True)
     txn_id: Mapped[str | None] = mapped_column("txn_id", Text, nullable=True)
     kind: Mapped[str] = mapped_column("kind", Text)
-    payload: Mapped[Any] = mapped_column("payload", JSONB)
+    payload: Mapped[Any] = mapped_column("payload", JSONB(none_as_null=True))
     hash_valid: Mapped[bool | None] = mapped_column("hash_valid", Boolean, nullable=True)
     result_status: Mapped[str | None] = mapped_column("result_status", Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column("created_at", DateTime, default=utcnow)

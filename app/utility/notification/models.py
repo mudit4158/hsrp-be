@@ -6,7 +6,7 @@ edit by hand after cut-over. The schema itself is created by the Alembic migrati
 from datetime import datetime  # noqa: F401
 from typing import Any  # noqa: F401
 
-from sqlalchemy import Boolean, DateTime, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401
+from sqlalchemy import Boolean, DateTime, FetchedValue, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB  # noqa: F401
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -49,7 +49,7 @@ class NotifyMessage(Base):
     dlt_template_id: Mapped[str | None] = mapped_column("dlt_template_id", Text, nullable=True)
     subject: Mapped[str | None] = mapped_column("subject", Text, nullable=True)
     body: Mapped[str] = mapped_column("body", Text)
-    variables: Mapped[Any] = mapped_column("variables", JSONB)
+    variables: Mapped[Any] = mapped_column("variables", JSONB(none_as_null=True))
     status: Mapped[str] = mapped_column("status", Text, default="QUEUED")
     provider_ref: Mapped[str | None] = mapped_column("provider_ref", Text, nullable=True)
     error: Mapped[str | None] = mapped_column("error", Text, nullable=True)

@@ -3,10 +3,10 @@
 import os
 
 import pytest
-from alembic import command
-from alembic.config import Config
 from sqlalchemy import create_engine, text
 
+from alembic import command
+from alembic.config import Config
 from app.platform.config import ROOT, env
 from app.platform.db.session import Database, _psycopg_url, set_db
 
@@ -31,7 +31,33 @@ def db() -> Database:
     command.upgrade(Config(str(ROOT / "alembic.ini")), "head")
     database = Database(url)
     set_db(database)
+    from app.container import reset_container
+
+    reset_container()
     return database
+
+
+def reset_db(database: Database) -> None:
+    with database.tx() as s:
+        tables = s.scalars(text("SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> 'alembic_version'")).all()
+        s.execute(text(f"TRUNCATE TABLE {', '.join(f'\"{t}\"' for t in tables)} RESTART IDENTITY CASCADE"))
+
+
+@pytest.fixture
+def clean(db) -> Database:
+    """An empty test database (every table truncated) for tests that write."""
+    reset_db(db)
+    return db
+
+
+TEST_TENANT = "t-test"
+
+
+def as_system(fn):
+    """Runs `fn` as the system actor of the test tenant (services read the tenant from the request context)."""
+    from app.platform.context import request_context
+
+    return request_context.run_as_system(TEST_TENANT, fn)
 
 
 @pytest.fixture(scope="session")

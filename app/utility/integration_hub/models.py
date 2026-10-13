@@ -6,7 +6,7 @@ edit by hand after cut-over. The schema itself is created by the Alembic migrati
 from datetime import datetime  # noqa: F401
 from typing import Any  # noqa: F401
 
-from sqlalchemy import Boolean, DateTime, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401
+from sqlalchemy import Boolean, DateTime, FetchedValue, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB  # noqa: F401
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,12 +25,12 @@ class OutboxEvent(Base):
     )
 
     id: Mapped[str] = mapped_column("id", Text, primary_key=True, default=new_id)
-    seq: Mapped[int] = mapped_column("seq", Integer, autoincrement=True)
+    seq: Mapped[int] = mapped_column("seq", Integer, server_default=FetchedValue())
     tenant_id: Mapped[str] = mapped_column("tenant_id", Text)
     event_type: Mapped[str] = mapped_column("event_type", Text)
     subject_type: Mapped[str | None] = mapped_column("subject_type", Text, nullable=True)
     subject_id: Mapped[str | None] = mapped_column("subject_id", Text, nullable=True)
-    payload: Mapped[Any] = mapped_column("payload", JSONB)
+    payload: Mapped[Any] = mapped_column("payload", JSONB(none_as_null=True))
     actor_id: Mapped[str | None] = mapped_column("actor_id", Text, nullable=True)
     occurred_at: Mapped[datetime] = mapped_column("occurred_at", DateTime, default=utcnow)
     dispatched_at: Mapped[datetime | None] = mapped_column("dispatched_at", DateTime, nullable=True)
@@ -76,7 +76,7 @@ class IdempotencyKey(Base):
     request_hash: Mapped[str] = mapped_column("request_hash", Text)
     status: Mapped[str] = mapped_column("status", Text, default="IN_PROGRESS")
     response_code: Mapped[int | None] = mapped_column("response_code", Integer, nullable=True)
-    response_body: Mapped[Any | None] = mapped_column("response_body", JSONB, nullable=True)
+    response_body: Mapped[Any | None] = mapped_column("response_body", JSONB(none_as_null=True), nullable=True)
     expires_at: Mapped[datetime] = mapped_column("expires_at", DateTime)
     created_at: Mapped[datetime] = mapped_column("created_at", DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column("updated_at", DateTime, default=utcnow, onupdate=utcnow)
@@ -94,8 +94,8 @@ class CallLog(Base):
     operation: Mapped[str] = mapped_column("operation", Text)
     subject_type: Mapped[str | None] = mapped_column("subject_type", Text, nullable=True)
     subject_id: Mapped[str | None] = mapped_column("subject_id", Text, nullable=True)
-    request: Mapped[Any | None] = mapped_column("request", JSONB, nullable=True)
-    response: Mapped[Any | None] = mapped_column("response", JSONB, nullable=True)
+    request: Mapped[Any | None] = mapped_column("request", JSONB(none_as_null=True), nullable=True)
+    response: Mapped[Any | None] = mapped_column("response", JSONB(none_as_null=True), nullable=True)
     outcome: Mapped[str] = mapped_column("outcome", Text)
     error: Mapped[str | None] = mapped_column("error", Text, nullable=True)
     duration_ms: Mapped[int] = mapped_column("duration_ms", Integer)

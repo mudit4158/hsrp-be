@@ -6,7 +6,7 @@ edit by hand after cut-over. The schema itself is created by the Alembic migrati
 from datetime import datetime  # noqa: F401
 from typing import Any  # noqa: F401
 
-from sqlalchemy import Boolean, DateTime, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401
+from sqlalchemy import Boolean, DateTime, FetchedValue, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB  # noqa: F401
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -80,7 +80,7 @@ class IamOtp(Base):
     purpose: Mapped[str] = mapped_column("purpose", Text)
     recipient: Mapped[str] = mapped_column("recipient", Text)
     code_hash: Mapped[str] = mapped_column("code_hash", Text)
-    context: Mapped[Any | None] = mapped_column("context", JSONB, nullable=True)
+    context: Mapped[Any | None] = mapped_column("context", JSONB(none_as_null=True), nullable=True)
     expires_at: Mapped[datetime] = mapped_column("expires_at", DateTime)
     attempts: Mapped[int] = mapped_column("attempts", Integer, default=0)
     verified_at: Mapped[datetime | None] = mapped_column("verified_at", DateTime, nullable=True)

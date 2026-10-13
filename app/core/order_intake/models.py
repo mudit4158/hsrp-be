@@ -6,7 +6,7 @@ edit by hand after cut-over. The schema itself is created by the Alembic migrati
 from datetime import datetime  # noqa: F401
 from typing import Any  # noqa: F401
 
-from sqlalchemy import Boolean, DateTime, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401
+from sqlalchemy import Boolean, DateTime, FetchedValue, Float, Index, Integer, LargeBinary, Text, text  # noqa: F401
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB  # noqa: F401
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -59,8 +59,8 @@ class Order(Base):
     mobile: Mapped[str | None] = mapped_column("mobile", Text, nullable=True)
     email: Mapped[str | None] = mapped_column("email", Text, nullable=True)
     amount_paise: Mapped[int | None] = mapped_column("amount_paise", Integer, nullable=True)
-    price_snapshot: Mapped[Any | None] = mapped_column("price_snapshot", JSONB, nullable=True)
-    vahan_snapshot: Mapped[Any | None] = mapped_column("vahan_snapshot", JSONB, nullable=True)
+    price_snapshot: Mapped[Any | None] = mapped_column("price_snapshot", JSONB(none_as_null=True), nullable=True)
+    vahan_snapshot: Mapped[Any | None] = mapped_column("vahan_snapshot", JSONB(none_as_null=True), nullable=True)
     wallet_hold_id: Mapped[str | None] = mapped_column("wallet_hold_id", Text, nullable=True)
     payment_id: Mapped[str | None] = mapped_column("payment_id", Text, nullable=True)
     approval_id: Mapped[str | None] = mapped_column("approval_id", Text, nullable=True)
@@ -104,7 +104,7 @@ class OrderValidation(Base):
     step: Mapped[str] = mapped_column("step", Text)
     outcome: Mapped[str] = mapped_column("outcome", Text)
     message: Mapped[str | None] = mapped_column("message", Text, nullable=True)
-    data: Mapped[Any | None] = mapped_column("data", JSONB, nullable=True)
+    data: Mapped[Any | None] = mapped_column("data", JSONB(none_as_null=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column("created_at", DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column("updated_at", DateTime, default=utcnow, onupdate=utcnow)
 
@@ -121,7 +121,7 @@ class VehicleCheck(Base):
     chassis_last5: Mapped[str] = mapped_column("chassis_last5", Text)
     engine_last5: Mapped[str] = mapped_column("engine_last5", Text)
     status: Mapped[str] = mapped_column("status", Text, default="PENDING")
-    result: Mapped[Any | None] = mapped_column("result", JSONB, nullable=True)
+    result: Mapped[Any | None] = mapped_column("result", JSONB(none_as_null=True), nullable=True)
     error: Mapped[str | None] = mapped_column("error", Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column("created_at", DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column("updated_at", DateTime, default=utcnow, onupdate=utcnow)
