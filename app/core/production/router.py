@@ -94,4 +94,5 @@ def sticker_queue(stationId: str | None = None):  # noqa: N803
 @router.post("/stickers/{orderId}/print")
 @require("station.operate")
 def print_sticker(orderId: str, body: StickerPrintRequest):  # noqa: N803
-    return pdf_response(*services().production.print_sticker(orderId, body.reprint, body.reason))
+    # 201 like any POST here (the NestJS API answered the printed PDF with 201 too).
+    return pdf_response(*services().production.print_sticker(orderId, body.reprint, body.reason), status_code=201)

@@ -1,23 +1,13 @@
 {
   "compilerOptions": {
     "module": "commonjs",
-    "declaration": false,
-    "removeComments": true,
-    "emitDecoratorMetadata": true,
-    "experimentalDecorators": true,
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
     "target": "ES2022",
-    "sourceMap": true,
-    "outDir": "./dist",
-    "baseUrl": "./",
-    "incremental": true,
+    "esModuleInterop": true,
     "skipLibCheck": true,
     "strict": true,
-    "strictPropertyInitialization": false,
     "noImplicitAny": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "noEmit": true
   },
-  "include": ["src"],
-  "exclude": ["node_modules", "dist", "test", "scripts"]
+  "include": ["scripts/demo-e2e.ts"]
 }

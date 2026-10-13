@@ -3,10 +3,10 @@
 import os
 
 import pytest
-from sqlalchemy import create_engine, text
-
 from alembic import command
 from alembic.config import Config
+from sqlalchemy import create_engine, text
+
 from app.platform.config import ROOT, env
 from app.platform.db.session import Database, _psycopg_url, set_db
 
@@ -27,7 +27,7 @@ def db() -> Database:
     admin.dispose()
 
     url = _test_url()
-    os.environ["PY_DATABASE_URL"] = url
+    os.environ["DATABASE_URL"] = url
     command.upgrade(Config(str(ROOT / "alembic.ini")), "head")
     database = Database(url)
     set_db(database)

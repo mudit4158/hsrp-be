@@ -1,6 +1,6 @@
 # Backend port to Python (FastAPI)
 
-**Last updated:** 13 Oct 2026
+**Last updated:** 13 Oct 2026 (port finished)
 
 The backend moves from NestJS (TypeScript) to FastAPI (Python) with **the same REST API and the same PostgreSQL
 schema**, so hsrp-fe and hsrp-mobile-app keep working unchanged (decision D48, user choice "rewrite, same API").
@@ -23,7 +23,7 @@ backend code is removed in one commit.
 | Unit tests | Jest | pytest |
 | Acceptance | `pnpm demo:e2e`, `pnpm sim` | unchanged: they call the HTTP API, so they run against either backend |
 
-## Layout (during the port)
+## Layout (during the port; history)
 
 ```
 app/            Python backend: platform/, utility/, core/, adapters/, seed/ (mirrors src/)
@@ -34,8 +34,8 @@ src/, prisma/   NestJS backend, removed at cut-over
 sim/, scripts/  acceptance tooling (TypeScript), kept
 ```
 
-During the port the Python API runs on port 3001 against its own database (`hsrp_py`), so the two backends never
-share an outbox. `API_BASE_URL=http://localhost:3001 pnpm demo:e2e` runs the acceptance flows against it.
+During the port the Python API ran on port 3001 against its own database (`hsrp_py`), so the two backends never
+shared an outbox (`PY_<NAME>` variables overrode `<NAME>` for it). Since the cut-over it is the only API, on :3000.
 
 ## Phases and gates
 
@@ -60,34 +60,27 @@ Progress is tracked in `docs/TRACKER.md` (item N-12).
 | P2 Utilities | Done (13 Oct 2026) | identity, configuration, audit, notification, file storage, payments, wallet, scheduling, documents (PDF layout DSL on ReportLab), import/export, approvals, tickets, reporting; the mock PayU adapter and gateway pages were pulled forward from P3. Every utility route matches NestJS (`scripts/route_parity.py`). Wallet Jest spec ported (incl. concurrent holds); 42 pytest tests. Not ported: the OTP service and customer tokens, used only by the detached customer portal (D37). |
 | P3 Adapters | Done (13 Oct 2026) | mock VAHAN, OEM order source and catalogue, mock state, simulator endpoints; OCR with the Tesseract binary through pytesseract (greyscale + block layout reads 40/40 simulator plates; the Windows installer path is found automatically) |
 | P4 Core | Done (13 Oct 2026) | masters, pricing, inventory, order intake (order service, state machine, validation flow, OEM intake and vehicle data), booking, production with plate OCR, dispatch, rejection, fitment, postpaid billing, oversight and all reports. All 142 NestJS routes exist in FastAPI (`scripts/route_parity.py`). Pure-rule and allocation Jest specs ported; 67 pytest tests. |
-| P5 Seed and parity | In progress | Seed ported (`python -m app.seed.run`: same fixtures as `app/seed/fixtures.json`, mulberry32 generator bit-identical, so the same fictional vehicles; upgrades D42/D46/D47). **`pnpm demo:e2e` passes 14/14 against the Python API** (`API_BASE_URL=http://localhost:3001`). OCR tuned on real headless-Chrome plate photos: crop the white plate, white out the IND strip, read one line (10/10), full photo as fallback. Also: `Dockerfile.python` (Tesseract installed; the entrypoint stamps a Prisma-built database at Alembic 0005 instead of recreating it, then seeds and starts Uvicorn); demo:e2e 14/14 against that container on the NestJS-built database. Contracts: enums and request models published in the OpenAPI document and exported to `openapi.json`; the web app generates `src/contracts/index.ts` from it. Next: `pnpm sim`, then cut-over. |
+| P5 Seed and parity | Done (13 Oct 2026) | Seed ported (`python -m app.seed.run`: same fixtures as `app/seed/fixtures.json`, mulberry32 generator bit-identical, so the same fictional vehicles; upgrades D42/D46/D47). **`pnpm demo:e2e` passes 14/14 against the Python API** (`API_BASE_URL=http://localhost:3001`). OCR tuned on real headless-Chrome plate photos: crop the white plate, white out the IND strip, read one line (10/10), full photo as fallback. Also: `Dockerfile.python` (Tesseract installed; the entrypoint stamps a Prisma-built database at Alembic 0005 instead of recreating it, then seeds and starts Uvicorn); demo:e2e 14/14 against that container on the NestJS-built database. Contracts: enums and request models published in the OpenAPI document and exported to `openapi.json`; the web app generates `src/contracts/index.ts` from it. `pnpm sim`: 14/14 cases against the Python API (TC-02 and TC-04 first failed on an expired phone session and a Docker networking hiccup, then passed on rerun). |
+| P6 Cut-over | Done (13 Oct 2026) | NestJS (`src/`), Prisma (`prisma/`), the zod contracts package, Jest and dependency-cruiser removed; the Python image is the Compose `api` service on :3000 and serves the existing database (stamped at 0005). One parity bug found on the way and fixed: the sticker print answers 201 like NestJS. |
 
-## Running the Python API (during the port)
+## Running the API
 
-From the repo root, with the Compose database up (`docker compose up -d db`):
+See AGENTS.md (Commands) and README.md (section 3). In short, with the Compose database up:
 
 ```bash
 python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"   # once (Python 3.12+)
-.venv/Scripts/alembic upgrade head                               # migrate PY_DATABASE_URL (create the hsrp_py database first)
-.venv/Scripts/python -m app.seed.run                             # seed it (SEED_PASSWORD from .env; SEED_RESET=true to wipe)
-.venv/Scripts/python scripts/export_openapi.py                   # after a route/model/enum change: openapi.json for the web app
-.venv/Scripts/uvicorn app.main:app --reload --port 3001          # API on :3001, docs at /api/docs
+.venv/Scripts/python -m app.platform.db.migrate_on_start         # migrate (stamps a NestJS-built database first)
+.venv/Scripts/python -m app.seed.run                             # seed (SEED_PASSWORD from .env; SEED_RESET=true to wipe)
+.venv/Scripts/uvicorn app.main:app --reload --port 3000          # API on :3000, docs at /api/docs
 .venv/Scripts/python -m pytest                                   # tests (builds hsrp_py_test from scratch)
-.venv/Scripts/lint-imports                                       # architecture rule 1
-.venv/Scripts/ruff check app tests alembic
+.venv/Scripts/python scripts/export_openapi.py                   # after a route/model/enum change: openapi.json
 ```
-
-While both backends run, any `PY_<NAME>` variable overrides `<NAME>` for the Python API only. `.env` sets
-`PY_DATABASE_URL` (database `hsrp_py`), `PY_API_PORT=3001` and `PY_PUBLIC_API_URL` / `PY_INTERNAL_API_URL`
-(`http://localhost:3001`, so the mock gateway's pages and webhooks come back to the Python API).
-`.venv/Scripts/python scripts/route_parity.py` lists the NestJS routes the Python API does not have yet (both running).
-Create the database once with `docker compose exec db psql -U hsrp -d postgres -c "CREATE DATABASE hsrp_py"`.
 
 ## Porting notes
 
 - **Models** come from `scripts/prisma_to_sqlalchemy.py` (one `models.py` per owning module, attributes in
-  snake_case, Prisma index names including its 63-character trimming, the two partial indexes of `0002_rules`). Re-run
-  it if a Prisma schema file changes before cut-over; afterwards the models are edited by hand and the script goes.
+  snake_case, Prisma index names including its 63-character trimming, the two partial indexes of `0002_rules`). The script was
+  removed at cut-over; the models are now edited by hand, with an Alembic revision per change.
 - **JSON**: routers are built with `app.platform.http.routing.router()`; its route class converts results with
   `to_jsonable` (ORM rows → camelCase dicts, datetimes → `toISOString()` form with milliseconds and `Z`) before
   FastAPI's own encoder runs. Request bodies extend `ApiModel` (camelCase aliases).

@@ -1,6 +1,7 @@
-import app.models  # noqa: F401
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
+
+import app.models  # noqa: F401
 from app.platform.db.base import Base
 from app.platform.http.json import iso
 from app.platform.http.problem import Problem

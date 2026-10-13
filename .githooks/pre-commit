@@ -3,7 +3,15 @@
 set -e
 if ! command -v node >/dev/null 2>&1; then echo "[pre-commit] node not found; skipping checks"; exit 0; fi
 node scripts/docs-check.mjs --staged
-# Architecture rules (dependency direction, module table ownership) when source code is staged.
-if git diff --cached --name-only | grep -q '^src/'; then
-  pnpm -s lint:deps
+# Architecture rules (dependency direction, module table ownership) and lint when Python code is staged.
+if git diff --cached --name-only | grep -q '^app/'; then
+  PY=.venv/Scripts/python.exe
+  [ -x "$PY" ] || PY=.venv/bin/python
+  if [ -x "$PY" ]; then
+    "$PY" -c "import sys; from importlinter.cli import lint_imports; sys.exit(lint_imports())"
+    "$PY" scripts/check_module_tables.py
+    "$PY" -m ruff check app tests alembic scripts
+  else
+    echo "[pre-commit] .venv not found; skipping the Python architecture checks"
+  fi
 fi

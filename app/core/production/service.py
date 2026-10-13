@@ -13,7 +13,6 @@ from app.contracts.schemas import IssuanceRequest, QcRequest
 from app.core.inventory.service import InventoryService
 from app.core.masters.scope import ScopeService
 from app.core.masters.service import MastersService
-from app.core.order_intake.models import Order
 from app.core.order_intake.orders import OrderService
 from app.core.ports import PlateReader
 from app.core.production.models import JobCard, PlatePhotoCheck, QcRecord, StickerPrint
@@ -266,7 +265,7 @@ class ProductionService:
             )
         return {"orderNo": order.order_no, "regnNo": order.regn_no, "checks": [{**row(c), "photoUrl": self.files.signed_path(c.file_id)} for c in out]}
 
-    def qc(self, order_id: str, req: QcRequest) -> Order:
+    def qc(self, order_id: str, req: QcRequest) -> Any:
         order = self.orders.get(order_id)
         self.station_for(order.station_id)
         if order.status != "ISSUED":
@@ -317,7 +316,7 @@ class ProductionService:
 
     # ------------------------------------------------------------ stickers
 
-    def sticker_queue(self, station_id: str | None = None) -> list[Order]:
+    def sticker_queue(self, station_id: str | None = None) -> list[Any]:
         return self.orders.find({"status": "QC_PASSED", "station_id": self.station_for(station_id), "sticker_required": True})
 
     def print_sticker(self, order_id: str, reprint: bool, reason: str | None) -> tuple[str, bytes]:
@@ -344,7 +343,7 @@ class ProductionService:
             print_no = prints + 1
         return f"sticker-{order.regn_no}-{print_no}.pdf", self._sticker_pdf(order, print_no, reprint)
 
-    def _sticker_pdf(self, order: Order, print_no: int, reprint: bool) -> bytes:
+    def _sticker_pdf(self, order: Any, print_no: int, reprint: bool) -> bytes:
         allocs = self.inventory.active_allocations(order.id)
         state = self.masters.state(order.state_code)
         return self.docs.render(

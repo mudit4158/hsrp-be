@@ -1,24 +1,22 @@
-FROM node:22-alpine AS build
-RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
-WORKDIR /repo
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
-COPY packages/contracts/package.json packages/contracts/
-RUN pnpm install --frozen-lockfile --ignore-scripts
-COPY . .
-RUN pnpm exec prisma generate \
- && pnpm run build \
- && pnpm prune --prod --ignore-scripts
+# FastAPI backend (D48, D49).
+FROM python:3.13-slim
 
-FROM node:22-alpine AS runtime
-RUN apk add --no-cache openssl
-ENV NODE_ENV=production
+# Tesseract for the plate photo OCR (D45); English model only.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
-COPY --from=build /repo/package.json ./
-COPY --from=build /repo/node_modules ./node_modules
-COPY --from=build /repo/packages/contracts ./packages/contracts
-COPY --from=build /repo/dist ./dist
-COPY --from=build /repo/prisma ./prisma
+# Dependencies from pyproject.toml; the app itself runs from /app (alembic.ini, alembic/ and the seed fixtures sit next
+# to it), so the package is uninstalled again after its dependencies are in.
+COPY pyproject.toml ./
+COPY app ./app
+RUN pip install --no-cache-dir . && pip uninstall -y hsrp-be
+COPY alembic.ini ./
+COPY alembic ./alembic
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
-RUN npx prisma generate && chmod +x ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
+
 EXPOSE 3000
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

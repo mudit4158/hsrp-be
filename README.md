@@ -2,7 +2,8 @@
 
 Backend of the HSRP Dealer Management System prototype: order intake from dealers, OEMs and customers,
 embossing-station production, dispatch, dealer inward, fitment with photos and the VAHAN post — with every external
-system mocked. NestJS + Prisma + PostgreSQL, REST under `/api/v1`, OpenAPI at `/api/docs`.
+system mocked. FastAPI (Python) + SQLAlchemy/Alembic + PostgreSQL, REST under `/api/v1`, OpenAPI at `/api/docs`
+(ported from NestJS with the same API and schema, D48).
 
 All data is fictional. Nothing here contacts a real VAHAN, OEM, payment or SMS system.
 
@@ -17,8 +18,8 @@ The three repos live side by side under `C:\workspace\hsrp\` (decision D38). Des
 decisions: [docs/DECISIONS.md](docs/DECISIONS.md) · open items: [docs/TRACKER.md](docs/TRACKER.md) ·
 working in the repo: [AGENTS.md](AGENTS.md).
 
-> **Customer portal disabled (decision D37).** The portal's code is still here (`src/core/customer-portal`) and in the
-> web repo, but it is detached: no `/api/v1/public/*` routes and the `CUSTOMER` role grants nothing. Customer orders,
+> **Customer portal disabled (decision D37).** The portal's code is in the web repo and in this repo's git history
+> (NestJS, not ported), but it is detached: no `/api/v1/public/*` routes and the `CUSTOMER` role grants nothing. Customer orders,
 > online payment and customer complaints (flows D and K) are not available. Re-enable steps: tracker item B-01.
 
 ## 1. Run the whole system
@@ -75,36 +76,41 @@ re-runnable; after many runs the demo vehicle pools run out — reseed.
 
 ```bash
 docker compose up -d db
-pnpm test
+.venv/Scripts/python -m pytest
 ```
 
-Unit tests: order state machine, plate allocation, wallet ledger, outbox retry, validation and pricing rules, and the
-dependency check itself. Database tests use a separate `hsrp_test` database on the Compose PostgreSQL.
+Tests (pytest, see section 3 for the Python setup): request pipeline (auth, permissions, idempotency, audit), order
+state machine, plate allocation, wallet ledger, outbox retry, validation, pricing, billing and OCR rules, every utility,
+the schema (models equal the migrated database), `openapi.json` being current and module table ownership. Database
+tests build a separate `hsrp_py_test` database on the Compose PostgreSQL.
 
 ```bash
-pnpm lint:deps
+.venv/Scripts/lint-imports
 pnpm docs:check
 ```
 
-`pnpm lint:deps` enforces the architecture (dependency direction, module table ownership; also part of `pnpm build`).
-`pnpm docs:check` checks the documentation (also run by the pre-commit hook; see section 6).
+`lint-imports` enforces the dependency direction (with `scripts/check_module_tables.py` for table ownership, both run
+by the pre-commit hook). `pnpm docs:check` checks the documentation (also run by the pre-commit hook; see section 6).
 
 ## 3. Develop without Docker for the API
 
-Needs Node 20+ and pnpm 9 (`npm i -g pnpm@9`).
+Needs Python 3.12+ and, for plate OCR, the Tesseract program (Windows: the UB Mannheim installer; its default path
+is found, or set `TESSERACT_CMD`; elsewhere `tesseract-ocr`). Node 20+ and pnpm 9 run the acceptance script and the
+simulator. On Windows the virtualenv's programs are in `.venv/Scripts/`, elsewhere in `.venv/bin/`.
 
 ```bash
-pnpm install
+python -m venv .venv
+.venv/Scripts/pip install -e ".[dev]"
 docker compose up -d db
-pnpm prisma:generate
-pnpm db:migrate
-pnpm seed
-pnpm dev
+.venv/Scripts/python -m app.platform.db.migrate_on_start
+.venv/Scripts/python -m app.seed.run
+.venv/Scripts/uvicorn app.main:app --reload --port 3000
 ```
 
-The API runs on :3000 with the worker inside it (`WORKER_ENABLED=true`) and reads `.env` from the repo root. Other
-scripts: `pnpm build` (contracts + architecture checks + compile), `pnpm contracts:build`, `pnpm db:sql` (print the
-schema as SQL when writing a migration), `pnpm seed:prod` (seed from the compiled build).
+The API runs on :3000 with the worker inside it (`WORKER_ENABLED=true`) and reads `.env` from the repo root.
+`migrate_on_start` applies the Alembic migrations (and stamps a database built by the old NestJS backend instead of
+recreating it). After changing a route, request model or enum, run `.venv/Scripts/python scripts/export_openapi.py` and
+commit `openapi.json`; the web app generates its contracts from it.
 
 ## 4. Click-through script (flows A–Q)
 
@@ -131,7 +137,7 @@ Sign in to the web app as `admin` and keep **Simulator** open (it shows every SM
 
 ### On-screen simulator (`pnpm sim`)
 
-`pnpm sim` plays ten end-to-end test cases on screen, one by one, happy flows first. It drives Chrome for the web
+`pnpm sim` plays fourteen end-to-end test cases on screen, one by one, happy flows first. It drives Chrome for the web
 roles and the Android emulator (debug dealer app) for inward and fitment, with a visible cursor, click ripples
 and a caption per step. Each run prepares its own fictional vehicles, so it can be repeated. Test cases, run plan,
 options (`--case`, `--from`, `--kind`, `--speed`, `--pace`, `--manual`, `--list`) and how to add a case:
@@ -140,20 +146,21 @@ options (`--case`, `--from`, `--kind`, `--speed`, `--pace`, `--manual`, `--list`
 ## 5. How it is built
 
 ```
-src/platform/   bootstrapping, env, Prisma, request context, auth guard, RFC 7807 errors, idempotency, audit, worker
-src/utility/    generic modules with no HSRP knowledge (identity, configuration, audit, integration-hub, notification,
-                file-storage, payments, wallet, scheduling, documents, import-export, approvals, tickets, reporting)
-src/core/       HSRP modules + ports (VehicleRegistry, OrderSource, OemVehicleCatalog)
-src/adapters/   one folder per external system: mock (and an empty real placeholder), plus the simulator
-prisma/schema/  one schema file per owning module ("// owner: <folder>"), migrations
-packages/contracts/  shared enums, zod schemas, event names (the web repo keeps a synced copy, D39)
+app/platform/   config, request context, database (transactions, filters, start-up migration), request pipeline (auth,
+                permissions, idempotency, audit, throttling), RFC 7807 errors, JSON, pagination, worker
+app/utility/    generic modules with no HSRP knowledge (identity, configuration, audit, integration_hub, notification,
+                file_storage, payments, wallet, scheduling, documents, import_export, approvals, tickets, reporting)
+app/core/       HSRP modules + ports (VehicleRegistry, OrderSource, OemVehicleCatalog, PlateReader)
+app/adapters/   one folder per external system: mock (and an empty real placeholder), plus the simulator
+app/contracts/  shared enums and request models, published in the OpenAPI document (openapi.json, D39, D48)
+*/models.py     each module's tables (SQLAlchemy); alembic/ holds the migrations
 ```
 
-Rules (handover section 4), enforced where possible: one-way dependencies (dependency-cruiser), generic references
+Rules (handover section 4), enforced where possible: one-way dependencies (import-linter), generic references
 (`subjectType` + `subjectId`), events first through a transactional outbox with retries and a dead-letter queue, ports and
 adapters chosen by `VAHAN_ADAPTER` / `PAYMENT_ADAPTER` / `MESSAGE_ADAPTER` / `OEM_ADAPTER` / `FILE_STORE_ADAPTER`,
 configuration over code, external calls never inside a user request, each module owns its tables
-(`scripts/check-module-tables.cjs`). API conventions: JWT bearer auth; `Idempotency-Key` on order creation, payments,
+(`scripts/check_module_tables.py`). API conventions: JWT bearer auth; `Idempotency-Key` on order creation, payments,
 top-ups, fitment and inward; RFC 7807 errors; paginated lists; `tenant_id`, `created_at`, `updated_at` on every table.
 
 ## 6. Keeping the docs current
@@ -162,19 +169,21 @@ Each repo has [AGENTS.md](AGENTS.md) (guide for people and coding agents; `CLAUD
 **maintain-docs** skill in `.claude/skills/maintain-docs/`, `scripts/docs-check.mjs`, and a pre-commit hook in
 `.githooks/` (enabled by `pnpm install`, or `git config core.hooksPath .githooks`). The hook blocks commits when a
 required doc is missing, tracker IDs clash or statuses are invalid, decision numbers break, a package script is
-undocumented, or the Prisma schema changed without a migration; it warns when code changes without doc changes
+undocumented, or a `models.py` changed without an Alembic revision (and runs import-linter, the table ownership check
+and ruff when Python code is staged); it warns when code changes without doc changes
 (decision D41).
 
 ## 7. What is mocked
 
 | System | Mock | Notes |
 | --- | --- | --- |
-| VAHAN | `src/adapters/vahan` | ~360 fictional vehicles; modes normal / slow / down / not-found; field names from a public sample (contract unconfirmed). Fitment replies are free text; one fixture answers with unreadable text. |
-| OEM systems | `src/adapters/oem` | Inbound API with API key + HMAC-SHA256 signature + idempotency key; CSV through an import profile; status callbacks stored; chassis catalogue for Zenmo. |
-| Payment gateway | `src/adapters/payment` | PayU-shaped hosted checkout: SHA-512 hash with a merchant salt, mock page (Success / Failure / Cancel), reverse-hash webhook, verify, refunds. |
-| SMS and e-mail | `src/adapters/messaging` | Every message stored and shown on the simulator; SMS without a DLT template id is refused. |
-| File storage | `src/adapters/file-store` | Bytes in PostgreSQL behind `FileStore`; signed short-lived links. |
-| Plate OCR | `src/adapters/ocr` | **Real** OCR by default: tesseract.js in the API process, English model bundled (no download). `OCR_ADAPTER=mock` reads the plate text test images embed instead. Used after embossing (QC gate) and at fitment (D45). |
+| VAHAN | `app/adapters/vahan` | ~360 fictional vehicles; modes normal / slow / down / not-found; field names from a public sample (contract unconfirmed). Fitment replies are free text; one fixture answers with unreadable text. |
+| OEM systems | `app/adapters/oem` | Inbound API with API key + HMAC-SHA256 signature + idempotency key; CSV through an import profile; status callbacks stored; chassis catalogue for Zenmo. |
+| Payment gateway | `app/adapters/payment` | PayU-shaped hosted checkout: SHA-512 hash with a merchant salt, mock page (Success / Failure / Cancel), reverse-hash webhook, verify, refunds. |
+| SMS and e-mail | `app/adapters/messaging` | Every message stored and shown on the simulator; SMS without a DLT template id is refused. |
+| File storage | `app/adapters/file_store` | Bytes in PostgreSQL behind `FileStore`; signed short-lived links. |
+| Plate OCR | `app/adapters/ocr` | **Real** OCR by default: the Tesseract program, run locally (installed in the Docker image); the white plate is
+cropped and the IND strip whited out before reading. `OCR_ADAPTER=mock` reads the plate text test images embed instead. Used after embossing (QC gate) and at fitment (D45). |
 
 ## 8. Not built (out of scope for the prototype)
 
@@ -186,4 +195,5 @@ items are in [docs/TRACKER.md](docs/TRACKER.md).
 
 All are in [.env.example](.env.example) with comments. Key ones: `SEED_PASSWORD` (required), `DEMO_MODE` /
 `DEMO_FIXED_OTP`, `WORKER_ENABLED`, `OUTBOX_RETRY_BASE_MS`, `PUBLIC_API_URL` / `PUBLIC_WEB_URL` (gateway redirects),
-the `*_ADAPTER` switches (incl. `OCR_ADAPTER`: `tesseract` or `mock`), `API_PORT`, `POSTGRES_PORT`.
+the `*_ADAPTER` switches (incl. `OCR_ADAPTER`: `tesseract` or `mock`; `TESSERACT_CMD` if Tesseract is not on the
+path), `API_PORT`, `POSTGRES_PORT`.

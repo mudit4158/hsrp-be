@@ -3,10 +3,10 @@ built by Prisma only needs `alembic stamp 0005` at cut-over."""
 
 from logging.config import fileConfig
 
+from alembic import context
 from sqlalchemy import create_engine, pool
 
 import app.models  # noqa: F401  (registers every table on Base.metadata for autogenerate)
-from alembic import context
 from app.platform.config import env
 from app.platform.db.base import Base
 from app.platform.db.session import _psycopg_url

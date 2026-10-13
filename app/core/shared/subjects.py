@@ -50,6 +50,6 @@ def parse_date(s: str) -> datetime | None:
     return None
 
 
-def pdf_response(filename: str, pdf: bytes) -> Response:
+def pdf_response(filename: str, pdf: bytes, status_code: int = 200) -> Response:
     """A generated PDF inline (opens in the browser's viewer, still downloadable)."""
-    return Response(pdf, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{filename}"'})
+    return Response(pdf, status_code=status_code, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{filename}"'})

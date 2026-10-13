@@ -43,6 +43,10 @@ extend-exclude = ["node_modules", "src", "sim", "packages", "dist", "alembic/ver
 select = ["E", "F", "I", "B", "UP"]
 ignore = ["E501", "B008"]
 
+[tool.ruff.lint.isort]
+# The local alembic/ folder holds migrations; the alembic package is a dependency.
+known-third-party = ["alembic"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"

@@ -1,4 +1,4 @@
-"""Environment settings (same variables as the NestJS backend's src/platform/config/env.ts)."""
+"""Environment settings, read from the process environment (Docker) or the repo-root .env (local runs)."""
 
 import os
 from dataclasses import dataclass, field
@@ -24,9 +24,7 @@ _load_dotenv()
 
 
 def _get(name: str) -> str | None:
-    # During the port (D48) a PY_<NAME> variable overrides <NAME> for the Python API only (its own database, port and
-    # URLs while the NestJS API keeps the plain names). Removed at cut-over.
-    return os.environ.get(f"PY_{name}") or os.environ.get(name)
+    return os.environ.get(name)
 
 
 def _str(name: str, fallback: str | None = None) -> str:
@@ -78,7 +76,7 @@ class Env:
 
     @property
     def database_url(self) -> str:
-        # Read on each use: tests point PY_DATABASE_URL at their own database after import.
+        # Read on each use: the tests point DATABASE_URL at their own database after import.
         return _str("DATABASE_URL")
 
 

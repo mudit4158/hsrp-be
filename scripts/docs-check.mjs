@@ -111,9 +111,10 @@ if (staged) {
       'If the change affects behaviour, setup, commands, decisions or open items, update README.md / AGENTS.md / docs/TRACKER.md (see the maintain-docs skill).');
   }
   if (repo === 'be') {
-    const schema = files.filter((f) => f.startsWith('prisma/schema/') && f.endsWith('.prisma'));
-    const migration = files.some((f) => /^prisma\/schema\/migrations\/[^/]+\/migration\.sql$/.test(f));
-    if (schema.length && !migration) errors.push(`Prisma schema changed (${schema.join(', ')}) without a new migration under prisma/schema/migrations/`);
+    // A table change is a models.py change; it needs an Alembic revision to change the database the same way.
+    const models = files.filter((f) => /^app\/.+\/models\.py$/.test(f));
+    const revision = files.some((f) => /^alembic\/versions\/[^/]+\.py$/.test(f));
+    if (models.length && !revision) errors.push(`Models changed (${models.join(', ')}) without a new Alembic revision under alembic/versions/`);
   }
   if (repo === 'fe' && files.some((f) => f.startsWith('src/contracts/')) && !process.env.CONTRACTS_SYNCED) {
     warnings.push('src/contracts changed: it must only change through `pnpm contracts:sync` from the backend.');
