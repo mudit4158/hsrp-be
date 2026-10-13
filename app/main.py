@@ -8,12 +8,26 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.adapters.payment import gateway as mock_payu_gateway
 from app.container import container
 from app.platform import health
 from app.platform.http import errors
 from app.platform.http.json import ApiResponse
 from app.platform.http.middleware import ContextMiddleware
+from app.utility.approvals import router as approvals
+from app.utility.audit import router as audit
+from app.utility.configuration import router as configuration
+from app.utility.documents import router as documents
+from app.utility.file_storage import router as files
+from app.utility.identity import router as identity
+from app.utility.import_export import router as imports
 from app.utility.integration_hub import router as integration_hub
+from app.utility.notification import router as notifications
+from app.utility.payments import router as payments
+from app.utility.reporting import router as reporting
+from app.utility.scheduling import router as scheduling
+from app.utility.tickets import router as tickets
+from app.utility.wallet import router as wallets
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [%(name)s] %(message)s")
 
@@ -47,9 +61,27 @@ def create_app() -> FastAPI:
     errors.install(app)
 
     api = APIRouter(prefix=API_PREFIX)
-    for module in (health, integration_hub):
+    for module in (
+        health,
+        identity,
+        configuration,
+        audit,
+        integration_hub,
+        notifications,
+        files,
+        payments,
+        wallets,
+        scheduling,
+        documents,
+        imports,
+        approvals,
+        tickets,
+        reporting,
+    ):
         api.include_router(module.router)
     app.include_router(api)
+    # The mock gateway's pages live outside /api/v1, as in the NestJS app.
+    app.include_router(mock_payu_gateway.router)
     return app
 
 

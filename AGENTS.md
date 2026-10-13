@@ -86,7 +86,8 @@ in `.env`. **Never print, log or commit `SEED_PASSWORD` or other secrets.**
 
 Needs Python 3.12+. Commands and the porting conventions are in `docs/FASTAPI-PORT.md`; in short `.venv/Scripts/uvicorn
 app.main:app --port 3001`, `.venv/Scripts/python -m pytest`, `.venv/Scripts/lint-imports`, `.venv/Scripts/alembic
-upgrade head`. It uses `PY_DATABASE_URL` (database `hsrp_py`) so it never shares an outbox with the NestJS API.
+upgrade head`. `PY_<NAME>` variables override `<NAME>` for it (database `hsrp_py`, port 3001 and its own URLs), so it never
+shares an outbox with the NestJS API. `scripts/route_parity.py` lists the routes still to port.
 
 ## Architecture rules (must hold — the build enforces 1 and 7)
 

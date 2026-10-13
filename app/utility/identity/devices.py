@@ -1,5 +1,7 @@
 """Registered devices. A session bound to a device stops working when the device is deactivated."""
 
+from __future__ import annotations
+
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 

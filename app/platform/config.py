@@ -23,8 +23,14 @@ def _load_dotenv() -> None:
 _load_dotenv()
 
 
+def _get(name: str) -> str | None:
+    # During the port (D48) a PY_<NAME> variable overrides <NAME> for the Python API only (its own database, port and
+    # URLs while the NestJS API keeps the plain names). Removed at cut-over.
+    return os.environ.get(f"PY_{name}") or os.environ.get(name)
+
+
 def _str(name: str, fallback: str | None = None) -> str:
-    v = os.environ.get(name)
+    v = _get(name)
     if v is None or v == "":
         if fallback is None:
             raise RuntimeError(f"Missing environment variable {name}")
@@ -33,11 +39,11 @@ def _str(name: str, fallback: str | None = None) -> str:
 
 
 def _bool(name: str, fallback: bool) -> bool:
-    return os.environ.get(name, str(fallback)).lower() == "true"
+    return (_get(name) or str(fallback)).lower() == "true"
 
 
 def _int(name: str, fallback: int) -> int:
-    return int(os.environ.get(name, fallback))
+    return int(_get(name) or fallback)
 
 
 @dataclass(frozen=True)
@@ -72,8 +78,8 @@ class Env:
 
     @property
     def database_url(self) -> str:
-        # During the port (D48) the Python API uses its own database so the two backends never share an outbox.
-        return os.environ.get("PY_DATABASE_URL") or _str("DATABASE_URL")
+        # Read on each use: tests point PY_DATABASE_URL at their own database after import.
+        return _str("DATABASE_URL")
 
 
 env = Env()

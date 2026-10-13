@@ -17,3 +17,8 @@ def new_id() -> str:
 def utcnow() -> datetime:
     """Naive UTC, as Prisma stored timestamps (`timestamp(3) without time zone`)."""
     return datetime.now(UTC).replace(tzinfo=None)
+
+
+def naive_utc(d: datetime) -> datetime:
+    """Timestamps are stored as naive UTC (Prisma's timestamp(3) columns); convert an aware value from a request."""
+    return d.astimezone(UTC).replace(tzinfo=None) if d.tzinfo is not None else d

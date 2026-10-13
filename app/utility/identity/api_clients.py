@@ -1,5 +1,7 @@
 """OEM systems call the API with an API key plus an HMAC-SHA256 signature of the raw request body."""
 
+from __future__ import annotations
+
 import hashlib
 import hmac
 import secrets

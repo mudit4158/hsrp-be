@@ -57,7 +57,8 @@ Progress is tracked in `docs/TRACKER.md` (item N-12).
 | --- | --- | --- |
 | P0 Scaffold | Done (13 Oct 2026) | Alembic revisions 0001–0005 replay the Prisma migration SQL; `pg_dump -s` of `hsrp_py` equals the Prisma-built `hsrp`. The 75 generated models compare clean against it (pytest `test_models_match_the_migrated_schema`). Health and unknown-route problem bodies match NestJS byte for byte. |
 | P1 Platform | Done (13 Oct 2026) | Request pipeline in `ApiRoute` (throttle → auth → idempotency → handler → audit, the NestJS guard/interceptor order), JWT HS256 with the same claims and secret, device binding, HMAC API clients, pagination, outbox event bus and scheduler threads, integration monitor routes. Event-bus Jest spec ported; 21 pytest tests. |
-| P2 Utilities | Next | identity (login, OTP, users), configuration, notification, file storage, payments, wallet, scheduling, documents, import/export, approvals, tickets, reporting |
+| P2 Utilities | Done (13 Oct 2026) | identity, configuration, audit, notification, file storage, payments, wallet, scheduling, documents (PDF layout DSL on ReportLab), import/export, approvals, tickets, reporting; the mock PayU adapter and gateway pages were pulled forward from P3. Every utility route matches NestJS (`scripts/route_parity.py`). Wallet Jest spec ported (incl. concurrent holds); 42 pytest tests. Not ported: the OTP service and customer tokens, used only by the detached customer portal (D37). |
+| P3 Adapters | Next | mock VAHAN, OEM order source and catalogue, OCR, simulator endpoints |
 
 ## Running the Python API (during the port)
 
@@ -72,7 +73,10 @@ python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"   # once (Python 3
 .venv/Scripts/ruff check app tests alembic
 ```
 
-`PY_DATABASE_URL` (in `.env`) points the Python API and Alembic at `hsrp_py`; without it they use `DATABASE_URL`.
+While both backends run, any `PY_<NAME>` variable overrides `<NAME>` for the Python API only. `.env` sets
+`PY_DATABASE_URL` (database `hsrp_py`), `PY_API_PORT=3001` and `PY_PUBLIC_API_URL` / `PY_INTERNAL_API_URL`
+(`http://localhost:3001`, so the mock gateway's pages and webhooks come back to the Python API).
+`.venv/Scripts/python scripts/route_parity.py` lists the NestJS routes the Python API does not have yet (both running).
 Create the database once with `docker compose exec db psql -U hsrp -d postgres -c "CREATE DATABASE hsrp_py"`.
 
 ## Porting notes

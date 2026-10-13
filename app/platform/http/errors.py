@@ -37,7 +37,9 @@ def _validation(errors: list[dict[str, Any]]) -> dict[str, Any]:
         loc = [str(p) for p in e.get("loc", ())]
         if loc and loc[0] in ("body", "query", "path", "header"):
             loc = loc[1:]
-        out.append({"path": ".".join(loc), "message": e.get("msg", "Invalid value")})
+        msg = e.get("msg", "Invalid value")
+        # Custom validators raise ValueError("..."); show their message as zod did, without Pydantic's prefix.
+        out.append({"path": ".".join(loc), "message": msg.removeprefix("Value error, ")})
     return problem_body(400, "validation", "Validation failed", "One or more fields are invalid", {"errors": out})
 
 

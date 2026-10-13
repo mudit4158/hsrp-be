@@ -1,5 +1,7 @@
 """Records every call to an external system: request, response, outcome and duration."""
 
+from __future__ import annotations
+
 import time
 from collections.abc import Callable
 from datetime import datetime
