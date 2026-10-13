@@ -1,0 +1,74 @@
+[project]
+name = "hsrp-be"
+version = "0.2.0"
+description = "HSRP Dealer Management System prototype — backend (FastAPI). Same REST API and schema as the NestJS backend it replaces (D48)."
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi==0.115.5",
+  "uvicorn[standard]==0.32.1",
+  "sqlalchemy==2.0.36",
+  "psycopg[binary]==3.2.3",
+  "alembic==1.14.0",
+  "pydantic==2.10.3",
+  "pydantic-settings==2.6.1",
+  "email-validator==2.2.0",
+  "pyjwt==2.10.1",
+  "python-multipart==0.0.17",
+  "reportlab==4.2.5",
+  "pillow==11.0.0",
+  "pytesseract==0.3.13",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==8.3.4",
+  "httpx==0.28.1",
+  "import-linter==2.1",
+  "ruff==0.8.2",
+]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.ruff]
+line-length = 130
+target-version = "py312"
+extend-exclude = ["node_modules", "src", "sim", "packages", "dist", "alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501", "B008"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+# Architecture rule 1 (one-way dependencies), as in .dependency-cruiser.cjs.
+[tool.importlinter]
+root_package = "app"
+
+[[tool.importlinter.contracts]]
+name = "utility never imports core or adapters"
+type = "forbidden"
+source_modules = ["app.utility"]
+forbidden_modules = ["app.core", "app.adapters"]
+
+[[tool.importlinter.contracts]]
+name = "core reaches adapters only through core.ports"
+type = "forbidden"
+source_modules = ["app.core"]
+forbidden_modules = ["app.adapters"]
+
+[[tool.importlinter.contracts]]
+name = "adapters use core only through core.ports"
+type = "forbidden"
+source_modules = ["app.adapters"]
+forbidden_modules = [
+  "app.core.billing", "app.core.booking", "app.core.dispatch", "app.core.fitment", "app.core.inventory",
+  "app.core.masters", "app.core.order_intake", "app.core.oversight", "app.core.pricing", "app.core.production",
+  "app.core.rejection",
+]

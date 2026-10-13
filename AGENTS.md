@@ -1,6 +1,6 @@
 # AGENTS.md — hsrp-be
 
-**Last updated:** 12 Oct 2026
+**Last updated:** 13 Oct 2026
 
 Guidance for anyone (human or coding agent) working in this repository. Read it before changing anything, and keep it
 true: if you change how the repo is built, run, structured or tested, update this file in the same commit.
@@ -44,7 +44,13 @@ scripts/                   demo-e2e.ts, check-module-tables.cjs, docs-check.mjs,
 sim/                       on-screen simulator (`pnpm sim`): core/ (browser + phone drivers, overlay, API helper),
                            scenes/ (reusable steps), cases/ (one file per end-to-end test case, run order in index.ts)
 test/                      Jest setup (test database) and helpers
-docs/                      DECISIONS.md (system-wide), TRACKER.md (system + backend), SIMULATION.md (test cases, run plan)
+docs/                      DECISIONS.md (system-wide), TRACKER.md (system + backend), SIMULATION.md (test cases, run plan),
+                           FASTAPI-PORT.md (the Python port: plan, progress, how to run it)
+app/                       FastAPI backend being ported (D48): platform/, utility/, core/, adapters/ mirroring src/;
+                           generated SQLAlchemy models in each module's models.py
+alembic/                   Python migrations; 0001–0005 replay the Prisma migration SQL (alembic/sql/)
+tests/                     pytest for the Python backend (test/ is Jest for the NestJS one)
+pyproject.toml             Python dependencies, ruff, pytest and import-linter (architecture rule 1) settings
 .claude/skills/            maintain-docs skill
 .githooks/                 pre-commit (docs-check, architecture check)
 ```
@@ -75,6 +81,12 @@ Run from the repo root. Needs Node 20+ (tested on 22 and 24), pnpm 9, Docker Des
 
 Demo users: `admin`, `ops`, `station.kol`, `station.bbs`, `dealer.wb01`, `dealer.od02`; password = `SEED_PASSWORD`
 in `.env`. **Never print, log or commit `SEED_PASSWORD` or other secrets.**
+
+### Python backend (port in progress, D48)
+
+Needs Python 3.12+. Commands and the porting conventions are in `docs/FASTAPI-PORT.md`; in short `.venv/Scripts/uvicorn
+app.main:app --port 3001`, `.venv/Scripts/python -m pytest`, `.venv/Scripts/lint-imports`, `.venv/Scripts/alembic
+upgrade head`. It uses `PY_DATABASE_URL` (database `hsrp_py`) so it never shares an outbox with the NestJS API.
 
 ## Architecture rules (must hold — the build enforces 1 and 7)
 
@@ -163,11 +175,15 @@ changes. It warns when code changes without any doc change.
   read the order's number. `pnpm demo:e2e` therefore renders plate photos with headless Chrome
   (`sim/core/plate-image.ts`); Chrome must be installed. Turn either check off per state with the settings
   `production.plateOcrRequired` / `fitment.plateOcrRequired`.
+- Python port: FastAPI's `jsonable_encoder` would turn datetimes into `+00:00` strings and cannot read ORM rows; build
+  routers with `app.platform.http.routing.router()` so results go through `to_jsonable` first.
+- Python port: a schema change before cut-over still goes through Prisma; then copy the migration SQL to
+  `alembic/sql/`, add a revision that runs it, and re-run `scripts/prisma_to_sqlalchemy.py`.
 - The tesseract model ships in `@tesseract.js-data/eng` (a runtime dependency); the worker starts on first use
   (~0.3 s) and reads a photo in ~0.1–1 s.
 
 ## Where things are tracked
 
 - Open items and pending fixes: `docs/TRACKER.md` (start here when picking up work).
-- Decisions: `docs/DECISIONS.md` (D1–D47) and the HLD.
+- Decisions: `docs/DECISIONS.md` (D1–D48) and the HLD.
 - End-to-end test cases and run plan: `docs/SIMULATION.md`.
