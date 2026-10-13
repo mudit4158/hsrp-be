@@ -60,7 +60,7 @@ Progress is tracked in `docs/TRACKER.md` (item N-12).
 | P2 Utilities | Done (13 Oct 2026) | identity, configuration, audit, notification, file storage, payments, wallet, scheduling, documents (PDF layout DSL on ReportLab), import/export, approvals, tickets, reporting; the mock PayU adapter and gateway pages were pulled forward from P3. Every utility route matches NestJS (`scripts/route_parity.py`). Wallet Jest spec ported (incl. concurrent holds); 42 pytest tests. Not ported: the OTP service and customer tokens, used only by the detached customer portal (D37). |
 | P3 Adapters | Done (13 Oct 2026) | mock VAHAN, OEM order source and catalogue, mock state, simulator endpoints; OCR with the Tesseract binary through pytesseract (greyscale + block layout reads 40/40 simulator plates; the Windows installer path is found automatically) |
 | P4 Core | Done (13 Oct 2026) | masters, pricing, inventory, order intake (order service, state machine, validation flow, OEM intake and vehicle data), booking, production with plate OCR, dispatch, rejection, fitment, postpaid billing, oversight and all reports. All 142 NestJS routes exist in FastAPI (`scripts/route_parity.py`). Pure-rule and allocation Jest specs ported; 67 pytest tests. |
-| P5 Seed and parity | Next | seed and upgrades, Dockerfile, OpenAPI contracts; then `demo:e2e` and `pnpm sim` against :3001 |
+| P5 Seed and parity | In progress | Seed ported (`python -m app.seed.run`: same fixtures as `app/seed/fixtures.json`, mulberry32 generator bit-identical, so the same fictional vehicles; upgrades D42/D46/D47). **`pnpm demo:e2e` passes 14/14 against the Python API** (`API_BASE_URL=http://localhost:3001`). OCR tuned on real headless-Chrome plate photos: crop the white plate, white out the IND strip, read one line (10/10), full photo as fallback. Next: Dockerfile, OpenAPI contracts, `pnpm sim`. |
 
 ## Running the Python API (during the port)
 
@@ -69,6 +69,7 @@ From the repo root, with the Compose database up (`docker compose up -d db`):
 ```bash
 python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"   # once (Python 3.12+)
 .venv/Scripts/alembic upgrade head                               # migrate PY_DATABASE_URL (create the hsrp_py database first)
+.venv/Scripts/python -m app.seed.run                             # seed it (SEED_PASSWORD from .env; SEED_RESET=true to wipe)
 .venv/Scripts/uvicorn app.main:app --reload --port 3001          # API on :3001, docs at /api/docs
 .venv/Scripts/python -m pytest                                   # tests (builds hsrp_py_test from scratch)
 .venv/Scripts/lint-imports                                       # architecture rule 1
