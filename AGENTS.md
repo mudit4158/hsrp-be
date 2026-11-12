@@ -1,6 +1,6 @@
 # AGENTS.md — hsrp-be
 
-**Last updated:** 13 Oct 2026
+**Last updated:** 12 Nov 2026
 
 Guidance for anyone (human or coding agent) working in this repository. Read it before changing anything, and keep it
 true: if you change how the repo is built, run, structured or tested, update this file in the same commit.
@@ -137,7 +137,8 @@ in `.env`. **Never print, log or commit `SEED_PASSWORD` or other secrets.**
 ## Safety
 
 - Never call real VAHAN, PayU, SMS, e-mail or OEM endpoints. All adapters stay `mock`.
-- Never push or create remotes without explicit confirmation from the user. Nothing is pushed today.
+- Never push or create remotes without explicit confirmation from the user. The three repos are private on GitHub
+  (`github.com/mudit4158/hsrp-be`, `hsrp-fe`, `hsrp-mobile-app`, remote `origin`); every push still needs confirmation.
 - Ask before anything irreversible (dropping volumes, deleting data, rewriting published history).
 
 ## Keeping documentation current (required)

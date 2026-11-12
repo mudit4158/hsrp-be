@@ -1,6 +1,6 @@
 # Tracker — open items and pending fixes (system and backend)
 
-**Last reviewed:** 12 Oct 2026
+**Last reviewed:** 12 Nov 2026
 
 This tracker holds backend items, items that span repos, business questions and hardening. Items that touch only
 one other repo live in that repo's tracker: [hsrp-fe/docs/TRACKER.md](../../hsrp-fe/docs/TRACKER.md) and
@@ -107,12 +107,12 @@ capture time. Business questions: B-05, B-06.
 | H-02 | Secrets | BE | P2 | Open | API client signing secrets are stored in clear (prototype); move to a secret store. Set strong `JWT_SECRET` and `FILE_LINK_SECRET`. |
 | H-03 | CORS and HTTPS | BE | P2 | Open | CORS reflects any origin (`src/main.ts`); restrict it. Serve the API over HTTPS. |
 | H-04 | Library upgrades | BE, FE | P3 | Open | Pinned to NestJS 10, Prisma 6, Zod 3, React 18, Vite 5 (D34). Plan the upgrade to current majors. |
-| H-05 | Repository remotes | BE, FE, AND | P3 | Open | All three repos are local only, nothing pushed. Create remotes when the team is ready (never push without explicit confirmation). |
 
 ## Done
 
 | ID | Item | Commit |
 | --- | --- | --- |
+| H-05 | Repository remotes: private GitHub repos mudit4158/hsrp-be, hsrp-fe, hsrp-mobile-app created and `main` pushed (12 Nov 2026); pushes still need explicit confirmation | pushed at 223b667 / 0e27ff9 / 980a0da |
 | N-12 | Backend ported from NestJS to FastAPI (Python) with the same REST API and schema: SQLAlchemy models, Alembic (Prisma-built databases are stamped), the request pipeline, outbox worker, every utility, adapter and core module, the seed, Tesseract OCR with plate cropping, contracts from OpenAPI (web app generated), Docker image; NestJS, Prisma and the contracts package removed. Parity: all 142 routes, demo:e2e 14/14, simulator 14/14, 70 pytest tests (D48, D49, docs/FASTAPI-PORT.md) | "FastAPI port P6: cut-over" commit |
 | — | Postpaid billing: payment mode and cycle per OEM, bill-to per OEM × dealer, charges, cycle close and Run billing now, bill PDF and e-mail, Billing page; demo:e2e flow N; simulator TC-13 (D46) | "Billing and OEM bulk upload" commit |
 | — | Bulk upload of OEM data with standard templates (vehicle data, orders), OEM chosen at upload, template download; demo:e2e flow Q; simulator TC-14 (D47) | same commit |
